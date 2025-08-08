@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
-  <title>Portfolio Backtester v7.4.0 (Audited)</title>
+  <title>Portfolio Backtester v7.4.1 (UI Fix)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
   <script src="app.js" defer></script>
@@ -61,8 +61,11 @@
     .ticker-input-row { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 8px; align-items: center; }
     .ticker-input-row input { text-transform: uppercase; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; }
     .remove-ticker-btn { background: transparent; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .remove-ticker-btn svg { width: 16px; height: 16px; fill: var(--red); }
+    .remove-ticker-btn svg { width: 16px; height: 16px; }
+    
     .add-btn { background: var(--primary-color); color: white; border: none; border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 500; }
+    .btn-secondary { background-color: #fff; color: var(--text-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 500; }
+    .btn-secondary:hover { background-color: #f8f9fa; }
     
     .run-button-container { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 25px 0; }
     #run-backtest-btn, #run-projections-btn { font-size: 16px; padding: 12px 30px; }
@@ -85,13 +88,16 @@
     .positive { color: var(--green); } .negative { color: var(--red); }
     .hidden { display: none; }
     
+    table.snapshot-table { border: none; margin-top: 5px; }
+    table.snapshot-table th, table.snapshot-table td { border: none; border-bottom: 1px solid var(--border-color); padding: 12px 8px; }
+    table.snapshot-table tr:last-child td { border-bottom: none; }
+    
     details > summary { cursor: pointer; font-size: 20px; font-weight: 600; list-style: revert; margin-bottom: -1px; }
     details[open] > summary { margin-bottom: 15px; }
     details .section-card-content { padding-top: 10px; }
     
     .phase-header { font-size: 16px; font-weight: 600; margin-top: 20px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e9ecef; }
     .indented-settings { margin-top: 15px; margin-left: 20px; padding-left: 15px; border-left: 3px solid #e9ecef; }
-    .outcome-explanation { font-size: 12px; color: var(--text-light); font-weight: 400; display: block; margin-top: 2px; line-height: 1.3; }
     .debug-log {
       background-color: #2b2b2b; border: 1px solid #555; border-radius: 8px;
       margin: 20px 0; padding: 15px; font-family: monospace; font-size: 13px;
@@ -106,14 +112,15 @@
         border-top: 1px solid var(--border-color); line-height: 1.6;
     }
     
+    #projection-details-container { border-top: 1px solid var(--border-color); margin-top: 30px; padding-top: 10px; }
+    .projection-detail-nav { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+    #portfolio-selector-label { font-size: 16px; font-weight: 600; flex-shrink: 0; }
+    
     .select-wrapper {
         position: relative; display: inline-block; width: 100%; max-width: 350px;
         border-radius: 6px; background-color: white;
     }
-    .select-wrapper:focus-within {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 1px;
-    }
+    .select-wrapper:focus-within { outline: 2px solid var(--primary-color); outline-offset: 1px; }
     .select-wrapper::after {
         content: ''; position: absolute; top: 50%; right: 15px;
         transform: translateY(-50%); width: 10px; height: 10px;
@@ -127,6 +134,21 @@
         cursor: pointer; outline: none;
     }
 
+    .scenario-tabs {
+        display: flex; justify-content: center; gap: 8px;
+        margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;
+    }
+    .scenario-tab {
+        padding: 6px 14px; border-radius: 6px;
+        border: 1px solid var(--border-color); background-color: #fff;
+        cursor: pointer; font-weight: 600;
+        color: var(--text-light); transition: all 0.2s; font-size: 14px;
+    }
+    .scenario-tab:hover { background-color: #e9ecef; }
+    .scenario-tab.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+    .toggle-year-btn { font-size: 12px; padding: 6px 12px; margin-top: 5px; cursor: pointer; }
+    .button-wrapper { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 15px; }
+
     @media (max-width: 768px) {
       .app-container { padding: 5px; } .section-card { padding: 15px; }
       h1 { font-size: 24px; } h2, details > summary { font-size: 20px; }
@@ -139,8 +161,9 @@
   <div id="master-tooltip"></div>
   <main class="app-container">
     <h1>Portfolio Backtester</h1>
-    <p class="version">Version 7.4.0 (Audited)</p>
+    <p class="version">Version 7.4.1 (UI Fix)</p>
 
+    <!-- Content is identical to previous version, omitted for brevity -->
     <div id="setup-card" class="section-card">
       <h2>1. Backtest Setup</h2>
       <div class="controls-grid">
@@ -158,13 +181,11 @@
         <div class="control-group"><label for="benchmark2">Benchmark 2 <span class="help-icon" data-tooltip="A second market index to include for comparison.">?</span></label><input type="text" id="benchmark2" value="QQQ"></div>
       </div>
     </div>
-
     <div class="section-card">
       <h2>2. Configure Portfolios</h2>
       <div id="portfolios-container"></div>
       <button id="add-portfolio-btn" class="add-btn" style="margin-top: 15px;">+ Add Portfolio</button>
     </div>
-
     <div class="run-button-container">
         <button id="run-backtest-btn" class="add-btn">Run Backtest</button>
         <div id="loader" class="loader"></div>
@@ -172,7 +193,6 @@
     <div id="error-container"></div>
     <div id="info-container"></div>
     <div id="backtest-debug-container" class="debug-log hidden"><h4>Backtest Debug Log:</h4></div>
-
     <div id="results-area" class="hidden">
       <div class="section-card" style="padding-bottom: 5px;"><h2>3. Backtest Results</h2></div>
       <details class="section-card" open><summary>Capital Snapshot</summary><div id="snapshot-table-container" class="table-container section-card-content"></div></details>
@@ -184,7 +204,6 @@
       <details class="section-card"><summary>Consistency</summary><div id="consistency-table-container" class="table-container section-card-content"></div></details>
       <details class="section-card" open><summary>Holdings Breakdown</summary><div id="holdings-tables-container" class="section-card-content"></div></details>
     </div>
-
     <div id="projections-area" class="section-card hidden">
         <h2>4. Future Projections</h2>
         <div id="projection-warning-container" class="hidden" style="margin-bottom: 20px;"></div>
