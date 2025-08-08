@@ -4,9 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- FIX: Added 'unsafe-inline' to script-src to allow the inline script to run. Removed stale hash. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
-  <title>Portfolio Backtester v7.4.1 (Audited)</title>
+  <title>Portfolio Backtester v7.4.2 (Audited)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
   <style>
@@ -59,7 +58,6 @@
         font-size: 13px; font-weight: 400; line-height: 1.5;
     }
     #portfolios-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
-    /* --- UX Fix: Style for portfolio empty state --- */
     #portfolios-empty-state {
         text-align: center;
         padding: 30px 20px;
@@ -77,7 +75,7 @@
     .ticker-input-row input { text-transform: uppercase; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; }
     .remove-ticker-btn { background: var(--red); color: white; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 14px; line-height: 26px; text-align: center; }
     .add-btn { background: var(--primary-color); color: white; border: none; border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 500; }
-    #add-portfolio-btn { margin-top: 15px; } /* CSS Fix: Moved inline style to stylesheet */
+    #add-portfolio-btn { margin-top: 15px; }
     .add-ticker-btn { font-size: 14px; padding: 8px 12px; }
 
     .run-button-container { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 25px 0; }
@@ -110,6 +108,8 @@
     .phase-header { font-size: 16px; font-weight: 600; margin-top: 20px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e9ecef; }
     .indented-settings { margin-top: 15px; margin-left: 20px; padding-left: 15px; border-left: 3px solid #e9ecef; }
     .projections-button-wrapper { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 25px; }
+    /* --- UX Fix: Add loading state style --- */
+    .projections-button-wrapper.loading { opacity: 0.7; cursor: not-allowed; }
     .outcome-explanation { font-size: 12px; color: var(--text-light); font-weight: 400; display: block; margin-top: 2px; line-height: 1.3; }
     .debug-log {
       background-color: #2b2b2b; border: 1px solid #555; border-radius: 8px;
@@ -194,7 +194,7 @@
   <div id="master-tooltip"></div>
   <main class="app-container">
     <h1>Portfolio Backtester</h1>
-    <p class="version">Version 7.4.1 (Audited)</p>
+    <p class="version">Version 7.4.2 (Audited)</p>
 
 <!-- Setup Section -->
 <section id="setup-card" class="section-card">
@@ -219,7 +219,6 @@
 <section class="section-card">
   <h2>2. Configure Portfolios</h2>
   <div id="portfolios-container"></div>
-  <!-- UX Fix: Empty state container -->
   <div id="portfolios-empty-state" class="hidden">
       No portfolios configured. Click <strong>+ Add Portfolio</strong> to get started!
   </div>
@@ -269,6 +268,7 @@
 
     <div class="controls-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
         <div class="control-group">
+            <!-- HTML Fix: Added for attribute for accessibility -->
             <label for="projection-start-value">Projection Starting Value ($) <span class="help-icon" data-tooltip="The starting balance for the future projection. This defaults to the ending balance from your first portfolio's backtest, but you can override it to model a different scenario.">?</span></label>
             <input type="number" id="projection-start-value" value="0" min="0">
         </div>
@@ -316,7 +316,7 @@
             <label for="retire-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="retire-inflation-rate" value="0" min="0">
         </div>
     </div>
-    <div class="projections-button-wrapper">
+    <div id="projections-button-wrapper-id" class="projections-button-wrapper">
         <button id="run-projections-btn" class="add-btn">Run Projections</button>
         <div id="projections-loader" class="loader"></div>
     </div>
@@ -351,6 +351,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const addPortfolioBtn = document.getElementById('add-portfolio-btn');
     const runBtn = document.getElementById('run-backtest-btn');
     const loader = document.getElementById('loader');
+    const projectionButtonWrapper = document.getElementById('projections-button-wrapper-id');
     const runProjectionsBtn = document.getElementById('run-projections-btn');
     const projectionsLoader = document.getElementById('projections-loader');
     const projectionsResultsArea = document.getElementById('projections-results-area');
@@ -394,7 +395,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- UX Fix: Function to manage empty state visibility ---
     function toggleEmptyState() {
         const hasPortfolios = portfoliosContainer.querySelector('.portfolio-card');
         portfoliosEmptyState.classList.toggle('hidden', !!hasPortfolios);
@@ -422,7 +422,7 @@ document.addEventListener("DOMContentLoaded", () => {
         removeBtn.setAttribute('aria-label', 'Remove Portfolio');
         removeBtn.addEventListener('click', () => {
             card.remove();
-            toggleEmptyState(); // Check empty state after removing
+            toggleEmptyState();
         });
 
         header.appendChild(nameInput);
@@ -440,7 +440,7 @@ document.addEventListener("DOMContentLoaded", () => {
         card.appendChild(tickersList);
         card.appendChild(addTickerBtn);
         portfoliosContainer.appendChild(card);
-        toggleEmptyState(); // Check empty state after adding
+        toggleEmptyState();
 
         if (tickers.length > 0) { tickers.forEach(t => addTicker(card, t.symbol, t.alloc)); } 
         else { addTicker(card); }
@@ -817,8 +817,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const hist_cagr = portfolioResult.annualReturn;
         const hist_volatility = portfolioResult.volatility;
         const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0;
-        const total_arithmetic_mean = hist_cagr + (Math.pow(hist_volatility, 2) / 2);
-        const drift = total_arithmetic_mean - (Math.pow(hist_volatility, 2) / 2);
+        
+        // FIX: Simplified drift calculation. For the formula used, drift is simply the CAGR.
+        const drift = hist_cagr;
 
         const yearPaths = [];
         let failures = 0;
@@ -831,7 +832,11 @@ document.addEventListener("DOMContentLoaded", () => {
             for (let y = 0; y < accumulationYears; y++) {
                 const startOfYearValue = value;
                 value += annualContribution;
-                value *= Math.exp(generateRandomReturn(drift, hist_volatility));
+                
+                // FIX: Corrected compounding logic. Use simple multiplication for discrete annual returns, not Math.exp().
+                const randomReturn = generateRandomReturn(drift, hist_volatility);
+                value *= (1 + randomReturn);
+
                 if (!isFinite(value) || value < 0) { value = 0; break; }
                 
                 path.push({ year: y + 1, startBalance: startOfYearValue, contributions: annualContribution, dividends: startOfYearValue * hist_dividend_yield, withdrawals: 0, salesNeeded: 0, endBalance: value });
@@ -854,7 +859,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; }
 
                     value -= currentWithdrawal;
-                    if (value > 0) { value *= Math.exp(generateRandomReturn(drift, hist_volatility)); }
+                    if (value > 0) {
+                        const randomReturn = generateRandomReturn(drift, hist_volatility);
+                        value *= (1 + randomReturn);
+                    }
                     if (!isFinite(value) || value < 0) { value = 0; }
                     
                     path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, contributions: 0, dividends: dividendsGenerated, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - dividendsGenerated), endBalance: value });
@@ -1332,8 +1340,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 buttonWrapper.appendChild(showMoreBtn);
                 const exportBtn = document.createElement('button');
                 exportBtn.className = 'toggle-year-btn';
-                exportBtn.textContent = `Export CSV (soon)`; // Fix: Clarify unimplemented feature
-                exportBtn.disabled = true; // Fix: Disable dead control
+                exportBtn.textContent = `Export CSV (soon)`;
+                exportBtn.disabled = true;
                 exportBtn.style.marginLeft = '10px';
                 buttonWrapper.appendChild(exportBtn);
                 content.appendChild(buttonWrapper);
@@ -1535,6 +1543,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function runProjections() {
         runProjectionsBtn.disabled = true;
         projectionsLoader.style.display = 'block';
+        projectionButtonWrapper.classList.add('loading');
         projectionDebugContainer.innerHTML = '<h4>Projection Debug Log:</h4>'; 
         logToPage('Projections initiated...', false, projectionDebugContainer);
         
@@ -1580,7 +1589,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (params.withdrawalStrategy === 'fixed_amount') { params.withdrawalAmount = parseFloat(document.getElementById('annual-withdrawal-amount').value); }
                 else if (params.withdrawalStrategy === 'percentage') { params.withdrawalRate = parseFloat(document.getElementById('annual-withdrawal-rate').value) / 100; }
             }
-            logToPage(`Running ${params.simulations} simulations...`, false, projectionDebugContainer);
+            logToPage(`Running ${params.simulations} simulations for ${portfoliosToProject.length} portfolio(s)...`, false, projectionDebugContainer);
             
             const projectionResults = portfoliosToProject.map(p => ({ name: p.portfolio.name, monteCarlo: calculateMonteCarloProjection(p, params) }));
             logToPage('Calculations finished.', false, projectionDebugContainer);
@@ -1599,6 +1608,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } finally {
             runProjectionsBtn.disabled = false;
             projectionsLoader.style.display = 'none';
+            projectionButtonWrapper.classList.remove('loading');
         }
     }
     
@@ -1634,7 +1644,6 @@ document.addEventListener("DOMContentLoaded", () => {
     addPortfolio("Growth Focus", [{symbol: 'QQQ', alloc: 60}, {symbol: 'VUG', alloc: 40}]);
     addPortfolio("Balanced Core", [{symbol: 'VOO', alloc: 60}, {symbol: 'BND', alloc: 40}]);
     
-    // Initial check for the empty state on page load
     toggleEmptyState();
 });
 </script>
