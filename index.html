@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- SECURITY: 'unsafe-inline' is removed for scripts, making the site more secure. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
-  <title>Portfolio Backtester v8.1.0 (Refactored)</title>
+  <title>Portfolio Backtester v8.2.0 (Stable)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
   <style>
@@ -132,14 +131,22 @@
     .indented-settings { margin-top: 1rem; margin-left: 1.25rem; padding-left: 1rem; border-left: 3px solid #e9ecef; }
     .projections-button-wrapper { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; }
     .projections-button-wrapper.loading { opacity: 0.7; cursor: not-allowed; }
+    
     .debug-log {
       background-color: #2b2b2b; border: 1px solid #555; border-radius: 8px;
-      margin: 1.25rem 0; padding: 1rem; font-family: monospace; font-size: 0.8125rem;
-      color: #ccc; max-height: 250px; overflow-y: auto; white-space: pre-wrap;
-      line-height: 1.6;
+      margin: 1.25rem 0; padding: 0; font-family: monospace; font-size: 0.8125rem;
+      color: #ccc; line-height: 1.6;
     }
-    .debug-log h3 { margin-top: 0; color: #eee; border-bottom: 1px solid #555; padding-bottom: 0.5rem; }
-    .debug-log p { margin: 0 0 0.3rem 0; }
+    .debug-log-header {
+        background-color: #3c3f41; color: #eee; padding: 0.5rem 1rem; border-radius: 8px 8px 0 0;
+        cursor: pointer; font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+    }
+    .debug-log-header::after { content: '▼'; transition: transform 0.2s; }
+    .debug-log.collapsed .debug-log-header::after { transform: rotate(-90deg); }
+    .debug-log-content { padding: 1rem; max-height: 250px; overflow-y: auto; white-space: pre-wrap; }
+    .debug-log.collapsed .debug-log-content { display: none; }
+    .debug-log-content p { margin: 0 0 0.3rem 0; }
+    
     footer {
         text-align: center; font-size: 0.75rem; color: var(--text-light);
         margin: 2.5rem auto 1.25rem auto; padding: 1.25rem; max-width: 800px;
@@ -168,7 +175,7 @@
   <div id="master-tooltip"></div>
   <main class="app-container">
     <h1>Portfolio Backtester</h1>
-    <p class="version">Version 8.1.0 (Refactored)</p>
+    <p class="version">Version 8.2.0 (Stable)</p>
 
 <!-- Setup Section -->
 <section id="setup-card" class="section-card">
@@ -210,7 +217,12 @@
 </div>
 <div id="error-container" aria-live="polite"></div>
 <div id="info-container" aria-live="polite"></div>
-<div id="backtest-debug-container" class="debug-log hidden"><h3>Backtest Debug Log:</h3></div>
+
+<!-- UX FIX: Restored Debug Logs with Collapsible UI -->
+<div id="backtest-debug-container" class="debug-log collapsed hidden">
+    <div class="debug-log-header" id="backtest-debug-header">Backtest Debug Log (Click to expand)</div>
+    <div class="debug-log-content"></div>
+</div>
 
 <!-- Results Dashboard -->
 <div id="results-area" class="section-card hidden basic-view">
@@ -308,7 +320,11 @@
         <button id="run-projections-btn" class="add-btn">Run Projections</button>
         <div id="projections-loader" class="loader"></div>
     </div>
-    <div id="projection-debug-container" class="debug-log hidden"><h3>Projection Debug Log:</h3></div>
+
+    <div id="projection-debug-container" class="debug-log collapsed hidden">
+        <div class="debug-log-header" id="projection-debug-header">Projection Debug Log (Click to expand)</div>
+        <div class="debug-log-content"></div>
+    </div>
     
     <div id="projections-results-tabs-container" class="hidden" style="margin-top: 1.25rem;">
         <div class="projection-model-tabs">
@@ -330,4 +346,4 @@
   <!-- SCRIPT IS NOW IN A SEPARATE FILE -->
   <script src="app.js" defer></script>
 </body>
-</html>
+                                                                        </html>
