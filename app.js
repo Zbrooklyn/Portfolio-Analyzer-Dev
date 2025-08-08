@@ -698,11 +698,11 @@ document.addEventListener("DOMContentLoaded", () => {
         ui.resultsArea.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // --- START: RESTORED PROJECTION RENDERING FUNCTIONS ---
+    // --- START: FULL PROJECTION RENDERING FUNCTIONS ---
     function renderProjectionResults(projectionResults, params) {
         ui.projectionsResultsArea.innerHTML = ''; // Clear old results
 
-        const createTable = (title, metrics, results) => {
+        const createTable = (title, metrics, results, tableClass = '') => {
             const h3 = document.createElement('h3');
             h3.textContent = title;
             ui.projectionsResultsArea.appendChild(h3);
@@ -710,6 +710,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const tableContainer = document.createElement('div');
             tableContainer.className = 'table-container';
             const table = document.createElement('table');
+            if (tableClass) table.className = tableClass;
             const thead = table.createTHead();
             const tbody = table.createTBody();
             const headerRow = thead.insertRow();
@@ -763,7 +764,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
         
-        // --- Details Section ---
         const detailsContainer = document.createElement('div');
         detailsContainer.id = 'projection-details-container';
         ui.projectionsResultsArea.appendChild(detailsContainer);
@@ -847,10 +847,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 content.appendChild(h3);
                 
                 const table = document.createElement('table');
+                table.className = 'snapshot-table';
                 const tbody = table.createTBody();
                 metrics.forEach(m => {
                     const row = tbody.insertRow();
-                    row.insertCell().textContent = m.label;
+                    const labelCell = row.insertCell();
+                    labelCell.textContent = m.label;
+                    labelCell.style.fontWeight = '600';
                     row.insertCell().textContent = m.value;
                 });
                 content.appendChild(table);
@@ -913,15 +916,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if(hasPathData && data.path.length > 5) {
                 const buttonWrapper = document.createElement('div');
-                buttonWrapper.style.textAlign = 'center';
+                buttonWrapper.className = 'button-wrapper';
+
                 const showMoreBtn = document.createElement('button');
                 showMoreBtn.className = 'toggle-year-btn add-btn';
                 showMoreBtn.textContent = `Show all ${data.path.length} years`;
                 buttonWrapper.appendChild(showMoreBtn);
+
                 const exportBtn = document.createElement('button');
-                exportBtn.className = 'toggle-year-btn';
+                exportBtn.className = 'toggle-year-btn btn-secondary';
                 exportBtn.textContent = `Export CSV`;
-                exportBtn.style.marginLeft = '10px';
                 buttonWrapper.appendChild(exportBtn);
                 content.appendChild(buttonWrapper);
 
@@ -980,8 +984,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         projectionChartInstance = new Chart(ctx, { type: 'line', data: { datasets: datasets }, options: { plugins: { legend: { labels: { filter: item => !item.text.includes('(Range of Outcomes)') } }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); }, label: function(context) { const label = context.dataset.label || ''; const value = formatNumber(context.parsed.y, 'currency'); return `${label}: ${value}`; } } } }, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { ticks: { callback: function(value) { return formatNumber(value, 'currency'); } } } } } });
     }
-    // --- END: RESTORED PROJECTION RENDERING FUNCTIONS ---
-
+    // --- END: FULL PROJECTION RENDERING FUNCTIONS ---
 
     // --- Logging ---
     function logToPage(message, isError = false, container) {
@@ -1141,7 +1144,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const projectionResults = portfoliosToProject.map(p => ({ name: p.portfolio.name, monteCarlo: calculateMonteCarloProjection(p, params) }));
             logToPage('Calculations finished. Rendering results...', false, ui.projectionDebugContainer);
             
-            // Show dynamic warning about projection basis
             ui.projectionWarningContainer.innerHTML = `<div class="info-box" style="background-color: var(--info-bg); border: 1px solid var(--info-border); color: var(--info-text); padding: 12px; border-radius: 8px;"><strong>Important:</strong> These simulations are based on the returns and volatility from the backtested period (${appState.backtestConfig.effectiveStartDate} to ${appState.backtestConfig.endDate}). This period's performance may not be representative of long-term market behavior.</div>`;
             ui.projectionWarningContainer.classList.remove('hidden');
 
