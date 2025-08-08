@@ -1,17 +1,3 @@
-Of course. Here is a review of the system prompt with a revised, more concise, and reorganized version.
-
-### Review of Your System Prompt
-
-*   **Strengths**:
-    *   **Extremely Clear Intent**: There is no ambiguity about what you want the AI to do. The role, mission, and deliverables are spelled out in detail.
-    *   **Comprehensive**: The audit scope covers all critical areas of a modern web application, from technical debt to user experience.
-    *   **Structured Output**: The demand for a specific output format is excellent for getting consistent, predictable results.
-    *   **User-Centric**: The focus on the "Everyday-User" and "non-expert" is a powerful guiding principle.
-
-*   **Areas for Improvement**:
-    *   **Length**: As you noted, it is very long. The extensive checklists in the "Audit Scope" section are the primary reason. A powerful model can infer many of these details from a more concise directive.
-    *   **Organization & Redundancy**: Some instructions are repeated. For example, "Conditional Code Output" is mentioned in "Hard Rules" and again in the "Output Format." The eight top-level headings in the output format could be slightly streamlined for a more logical flow.
-    *   **Flow**: The `QUICK-FIX PRIORITIES` section appears late in the output format. It's more logical to prioritize issues *before* creating a fix plan.
 
 ---
 
