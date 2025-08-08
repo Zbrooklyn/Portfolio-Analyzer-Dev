@@ -301,7 +301,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const startingPrice = allData[symbol].prices[tradingDays[0]];
             if (!startingPrice) throw new Error(`Could not get starting price for ${symbol} on date ${tradingDays[0]}.`);
             const valueStart = initialInvestment * (allocation / 100);
-            holdings[symbol] = { shares: valueStart / startingPrice, preTaxShares: valueStart / startingPrice, data: allData[symbol], valueStart: valueStart };
+            holdings[symbol] = { 
+                shares: valueStart / startingPrice, 
+                preTaxShares: valueStart / startingPrice,
+                data: allData[symbol], 
+                valueStart: valueStart 
+            };
         }
         holdings.CASH = { shares: 0, preTaxShares: 0 };
 
@@ -465,11 +470,11 @@ document.addEventListener("DOMContentLoaded", () => {
             totalReturn: postTaxValue - totalContributions, totalReturnPercent: (postTaxValue - totalContributions) / totalContributions, annualReturn: postTaxAnnualReturn, cumulativeDividends, taxDrag,
             volatility, downsideVol: downsideStdDev * Math.sqrt(252), sharpeRatio: (postTaxAnnualReturn - riskFreeRate) / volatility, sortinoRatio: (postTaxAnnualReturn - riskFreeRate) / (downsideStdDev * Math.sqrt(252)),
             maxDrawdown, bestYear, worstYear, beta, alpha, dropNow: (postTaxValue - peakValue) / peakValue, longestRecovery, winningMonths: winningMonths / (winningMonths + losingMonths || 1),
-            winningStreak: maxWinStreak, losingStreak: maxLoseStreak, incomeLast12Mo: last12MoDividends, yieldOnCost: last12MoDividends / totalContributions, dailyReturns, meanReturn, variance: Math.pow(stdDev, 2) * 252,
+            winningStreak: maxWinStreak, losingStreak: maxLoseStreak, incomeLast12Mo: last12MoDividends, yieldOnCost: last12MoDividends / totalContributions, dailyReturns, meanReturn, variance: Math.pow(volatility, 2),
             stockPercent, bondPercent, cashPercent, incomeGrowth
         };
     }
-
+    
     // --- Projection Engines ---
     function generateRandomReturn(mean, stdDev) { 
         let u1=0, u2=0; 
@@ -589,22 +594,33 @@ document.addEventListener("DOMContentLoaded", () => {
         if (type === 'decimal') return num.toFixed(2);
         return num.toLocaleString();
     }
-    
+
     function renderResults(results, primaryBenchmarkTicker) {
         const portfolioNames = results.map(r => r.portfolio.name);
         
         function createTable(containerId, metrics) {
             const container = document.getElementById(containerId);
             container.innerHTML = ''; 
+
             const table = document.createElement('table');
-            const thead = table.createTHead(); const tbody = table.createTBody();
+            const thead = table.createTHead();
+            const tbody = table.createTBody();
             const headerRow = thead.insertRow();
-            headerRow.insertCell().outerHTML = '<th>Metric</th>';
-            portfolioNames.forEach(name => { headerRow.insertCell().outerHTML = `<th>${name}</th>`; });
+
+            const thMetric = document.createElement('th');
+            thMetric.textContent = 'Metric';
+            headerRow.appendChild(thMetric);
+
+            portfolioNames.forEach(name => {
+                const th = document.createElement('th');
+                th.textContent = name;
+                headerRow.appendChild(th);
+            });
 
             metrics.forEach(metric => {
                 const tr = tbody.insertRow();
                 const tdMetric = tr.insertCell();
+                
                 tdMetric.innerHTML = `${metric.label} <span class="help-icon" data-tooltip="${metric.help}">?</span>`;
 
                 results.forEach(r => {
@@ -657,16 +673,47 @@ document.addEventListener("DOMContentLoaded", () => {
         
         const holdingsTablesContainer = document.getElementById('holdings-tables-container');
         holdingsTablesContainer.innerHTML = '';
+
         results.filter(r => r.breakdown).forEach(r => {
             const portfolioHeader = document.createElement('h3');
             portfolioHeader.textContent = r.portfolio.name;
             portfolioHeader.style.marginTop = '20px';
             holdingsTablesContainer.appendChild(portfolioHeader);
+
             const tableContainer = document.createElement('div');
             tableContainer.className = 'table-container';
-            tableContainer.innerHTML = `<table><thead><tr><th>Ticker</th><th>Inception</th><th>Target %</th><th>Shares</th><th>Start $</th><th>End $</th><th>Drift %</th></tr></thead><tbody>${r.breakdown.map(t => `<tr><td>${t.symbol}</td><td>${t.inceptionDate}</td><td>${formatNumber(t.allocation / 100, 'percent', 1)}</td><td>${t.shares.toFixed(2)}</td><td>${formatNumber(t.valueStart, 'currency')}</td><td>${formatNumber(t.valueEnd, 'currency')}</td><td class="${t.drift >= 0 ? 'positive' : 'negative'}">${t.drift.toFixed(1)} %</td></tr>`).join('')}</tbody></table>`;
+            
+            const table = document.createElement('table');
+            const thead = table.createTHead();
+            const tbody = table.createTBody();
+            const headerRow = thead.insertRow();
+            ['Ticker', 'Inception', 'Target %', 'Shares', 'Start $', 'End $', 'Drift %'].forEach((text, i) => {
+                const th = document.createElement('th');
+                th.textContent = text;
+                if (i === 0) th.style.textAlign = 'left';
+                headerRow.appendChild(th);
+            });
+
+            r.breakdown.forEach(t => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = t.symbol;
+                row.insertCell().textContent = t.inceptionDate;
+                row.insertCell().textContent = formatNumber(t.allocation / 100, 'percent', 1);
+                row.insertCell().textContent = t.shares.toFixed(2);
+                row.insertCell().textContent = formatNumber(t.valueStart, 'currency');
+                row.insertCell().textContent = formatNumber(t.valueEnd, 'currency');
+                const driftCell = row.insertCell();
+                driftCell.textContent = `${t.drift.toFixed(1)} %`;
+                driftCell.className = t.drift >= 0 ? 'positive' : 'negative';
+            });
+            tableContainer.appendChild(table);
             holdingsTablesContainer.appendChild(tableContainer);
         });
+
+        ui.resultsArea.classList.remove('hidden');
+        ui.projectionsArea.classList.remove('hidden');
+        ui.runProjectionsBtn.disabled = false;
+        ui.resultsArea.scrollIntoView({ behavior: 'smooth' });
     }
 
     function renderProjectionResults(projectionResults, params) {
@@ -880,7 +927,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         projectionChartInstance = new Chart(ctx, { type: 'line', data: { datasets: datasets }, options: { plugins: { legend: { labels: { filter: item => !item.text.includes('(Range of Outcomes)') } }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); }, label: function(context) { const label = context.dataset.label || ''; const value = formatNumber(context.parsed.y, 'currency'); return `${label}: ${value}`; } } } }, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { ticks: { callback: function(value) { return formatNumber(value, 'currency'); } } } } } });
     }
-
+    
     // --- Logging ---
     function logToPage(message, isError = false, container) {
         container.classList.remove('hidden');
@@ -918,18 +965,18 @@ document.addEventListener("DOMContentLoaded", () => {
             ].filter(b => b))];
             if (userPortfolios.length === 0 && userBenchmarks.length === 0) { throw new Error("Please configure at least one portfolio or benchmark."); }
             const allUniqueTickers = Array.from(new Set([...userBenchmarks, ...userPortfolios.flatMap(p => p.tickers.map(t => t.symbol))]));
+            
             const priceRequests = allUniqueTickers.map(t => ({ key: t, fetchFn: fetchTickerData, args: [t, appState.backtestConfig.startDate, appState.backtestConfig.endDate] }));
-            const profileRequests = allUniqueTickers.map(t => ({ key: `${t}_profile`, fetchFn: fetchTickerProfile, args: [t] }));
-            const pricePromise = fetchAllWithRetries(priceRequests, proxies.price, "Price", ui.backtestDebugContainer);
-            const profilePromise = fetchAllWithRetries(profileRequests, proxies.profile, "Profile", ui.backtestDebugContainer);
-            const priceResults = await pricePromise;
+            const priceResults = await fetchAllWithRetries(priceRequests, proxies.price, "Price", ui.backtestDebugContainer);
+
             let infoMessages = [];
             const allData = {}; 
             const failedPriceTickers = priceResults.failures || [];
             if (failedPriceTickers.length > 0) infoMessages.push(`<strong>Warning:</strong> Could not load price data for: ${failedPriceTickers.join(', ')}.`);
             allUniqueTickers.forEach(t => { if (priceResults[t]) allData[t] = priceResults[t]; });
             const successfulTickers = Object.keys(allData);
-            if(successfulTickers.length === 0) throw new Error("Failed to fetch data for all requested tickers.");
+            if(successfulTickers.length === 0) throw new Error("Failed to fetch critical price data for all requested tickers.");
+            
             let latestInceptionDate = '1900-01-01';
             successfulTickers.forEach(t => { if(allData[t].inceptionDate > latestInceptionDate) latestInceptionDate = allData[t].inceptionDate; });
             const effectiveStartDate = (latestInceptionDate > appState.backtestConfig.startDate) ? latestInceptionDate : appState.backtestConfig.startDate;
@@ -938,6 +985,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ui.infoContainer.innerHTML = `<ul>${infoMessages.map(m => `<li>${m}</li>`).join('')}</ul>`;
                 ui.infoContainer.style.display = 'block';
             }
+
             const configForCalc = { ...appState.backtestConfig, startDate: effectiveStartDate };
             appState.backtestConfig.effectiveStartDate = effectiveStartDate;
             const portfoliosForCalc = userPortfolios.filter(p => p.tickers.every(t => successfulTickers.includes(t.symbol)));
@@ -950,9 +998,16 @@ document.addEventListener("DOMContentLoaded", () => {
             userBenchmarks.forEach(b => { if(!benchmarkResults[b] && successfulTickers.includes(b)) benchmarkResults[b] = calculatePortfolioPerformance({name: b, tickers: [{symbol: b, allocation: 100}]}, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker]); });
             appState.historicalResults = [...portfolioResults, ...Object.values(benchmarkResults).filter(Boolean)];
             if (appState.historicalResults.length === 0) throw new Error("No portfolios or benchmarks could be calculated.");
+            
             renderResults(appState.historicalResults, primaryBenchmarkTicker);
-            profilePromise.then(allProfiles => { updateCostMetricsInTable(appState.historicalResults, allProfiles); });
-            ui.runProjectionsBtn.disabled = false;
+
+            const profileRequests = allUniqueTickers.map(t => ({ key: `${t}_profile`, fetchFn: fetchTickerProfile, args: [t] }));
+            fetchAllWithRetries(profileRequests, proxies.profile, "Profile", ui.backtestDebugContainer)
+                .then(allProfiles => {
+                    updateCostMetricsInTable(appState.historicalResults, allProfiles);
+                    logToPage('Cost metrics updated.', false, ui.backtestDebugContainer);
+                });
+
         } catch (error) {
             logToPage(`FATAL ERROR: ${error.message}`, true, ui.backtestDebugContainer);
             ui.errorContainer.textContent = `Error: ${error.message}`;
