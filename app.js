@@ -167,6 +167,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     // --- Data Fetching & Validation ---
+    async function fetchWithTimeout(resource, options = {}, timeout = 15000) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(resource, {
+                ...options,
+                signal: controller.signal  
+            });
+            clearTimeout(id);
+            return response;
+        } catch (error) {
+            clearTimeout(id);
+            if (error.name === 'AbortError') {
+                throw new Error('Request timed out');
+            }
+            throw error;
+        }
+    }
+
     const proxies = {
         price: ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url="],
         profile: ["https://api.allorigins.win/raw?url=", "https://corsproxy.io/?"]
@@ -222,11 +241,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
         const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startTimestamp}&period2=${endTimestamp}&interval=1d&events=div`;
-        const res = await fetch(proxy + encodeURIComponent(url));
+        const res = await fetchWithTimeout(proxy + encodeURIComponent(url));
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
         const data = await res.json();
         if (data.chart.error) throw new Error(data.chart.error.message);
-        if (!data.chart.result || data.chart.result.length === 0 || !data.chart.result[0].timestamp) { throw new Error(`No price data returned`); }
+        if (!data.chart.result || data.chart.result.length === 0 || !data.chart.result[0].timestamp) { throw new Error(`No price data returned for ${ticker}`); }
         const result = data.chart.result[0];
         const prices = {};
         result.timestamp.forEach((ts, i) => { const date = new Date(ts * 1000).toISOString().split('T')[0]; if (result.indicators.quote[0].close[i] !== null) { prices[date] = result.indicators.quote[0].close[i]; } });
@@ -239,7 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function fetchTickerProfile(proxy, ticker) {
         const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=fundProfile`;
-        const res = await fetch(proxy + encodeURIComponent(url));
+        const res = await fetchWithTimeout(proxy + encodeURIComponent(url));
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
         const data = await res.json();
         const profile = data?.quoteSummary?.result?.[0]?.fundProfile;
