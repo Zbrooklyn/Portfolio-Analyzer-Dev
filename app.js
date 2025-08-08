@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
         endDateInput: document.getElementById('end-date'),
         startDateInput: document.getElementById('start-date'),
     };
-    const REMOVE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const REMOVE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18M6 6l12 12" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
     // --- Dynamic Defaults & Initialization ---
     function setDynamicDefaults() {
@@ -402,9 +402,6 @@ document.addEventListener("DOMContentLoaded", () => {
         postTaxHprFactors.push(postTaxValue / postTaxValueAtStartOfPeriod);
         preTaxHprFactors.push(preTaxValue / preTaxValueAtStartOfPeriod);
 
-        // TWRR calculation. Correct but complex. It calculates the geometric mean of holding period returns,
-        // with each period defined by a cash flow (contribution). This isolates the impact of manager performance
-        // from the impact of cash flow timing. The result is then annualized.
         const annualize = (hprFactors) => {
             if (hprFactors.length === 0) return 0;
             const geoMean = hprFactors.reduce((acc, val) => acc * val, 1);
@@ -701,12 +698,289 @@ document.addEventListener("DOMContentLoaded", () => {
         ui.resultsArea.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // --- (Projection Rendering functions are large and unchanged, so they are omitted for brevity) ---
-    // The original projection rendering functions would be placed here, unchanged from the provided source.
-    // They are: renderProjectionResults, createDetailView, renderProjectionChart
-    function renderProjectionResults(projectionResults, params) { ui.projectionsResultsArea.innerHTML = 'Projection results would be rendered here.'; }
-    function createDetailView(result, params) { return document.createElement('div'); }
-    function renderProjectionChart(historicalData, projectionData, params) { }
+    // --- START: RESTORED PROJECTION RENDERING FUNCTIONS ---
+    function renderProjectionResults(projectionResults, params) {
+        ui.projectionsResultsArea.innerHTML = ''; // Clear old results
+
+        const createTable = (title, metrics, results) => {
+            const h3 = document.createElement('h3');
+            h3.textContent = title;
+            ui.projectionsResultsArea.appendChild(h3);
+
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+            const table = document.createElement('table');
+            const thead = table.createTHead();
+            const tbody = table.createTBody();
+            const headerRow = thead.insertRow();
+            
+            tableContainer.appendChild(table);
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            ui.projectionsResultsArea.appendChild(tableContainer);
+
+            const thMetric = document.createElement('th');
+            thMetric.textContent = 'Scenario';
+            headerRow.appendChild(thMetric);
+            results.forEach(r => {
+                const th = document.createElement('th');
+                th.textContent = r.name;
+                headerRow.appendChild(th);
+            });
+
+            metrics.forEach(metric => {
+                const row = tbody.insertRow();
+                const labelCell = row.insertCell();
+                labelCell.textContent = metric.label;
+                
+                results.forEach(r => {
+                    const cell = row.insertCell();
+                    cell.textContent = metric.formatter(r);
+                });
+            });
+        };
+
+        createTable('Portfolio Overview — All Scenarios', [
+            { label: 'Best (90th)', formatter: r => formatNumber(r.monteCarlo.good.endingBalance, 'currency') },
+            { label: 'Middle (50th)', formatter: r => formatNumber(r.monteCarlo.median.endingBalance, 'currency') },
+            { label: 'Worst (10th)', formatter: r => formatNumber(r.monteCarlo.poor.endingBalance, 'currency') }
+        ], projectionResults);
+
+        if (params.goal === 'retire') {
+             createTable('Annual Dividends at Retirement Start', [
+                { label: 'Best (90th)', formatter: r => formatNumber(r.monteCarlo.good.dividendsAtRetirement, 'currency') },
+                { label: 'Middle (50th)', formatter: r => formatNumber(r.monteCarlo.median.dividendsAtRetirement, 'currency') },
+                { label: 'Worst (10th)', formatter: r => formatNumber(r.monteCarlo.poor.dividendsAtRetirement, 'currency') }
+            ], projectionResults);
+
+            const withdrawalAmount = params.withdrawalStrategy === 'fixed_amount' ? params.withdrawalAmount : 0;
+            if(withdrawalAmount > 0) {
+                 createTable(`Dividend Coverage of Target Withdrawal (${formatNumber(withdrawalAmount, 'currency')}/yr)`, [
+                    { label: 'Best (90th)', formatter: r => formatNumber(r.monteCarlo.good.dividendsAtRetirement / withdrawalAmount, 'percent', 0) },
+                    { label: 'Middle (50th)', formatter: r => formatNumber(r.monteCarlo.median.dividendsAtRetirement / withdrawalAmount, 'percent', 0) },
+                    { label: 'Worst (10th)', formatter: r => formatNumber(r.monteCarlo.poor.dividendsAtRetirement / withdrawalAmount, 'percent', 0) }
+                ], projectionResults);
+            }
+        }
+        
+        // --- Details Section ---
+        const detailsContainer = document.createElement('div');
+        detailsContainer.id = 'projection-details-container';
+        ui.projectionsResultsArea.appendChild(detailsContainer);
+        
+        const detailsHeader = document.createElement('h3');
+        detailsHeader.textContent = 'Projection Details';
+        detailsContainer.appendChild(detailsHeader);
+        
+        const navContainer = document.createElement('div');
+        navContainer.className = 'projection-detail-nav';
+
+        const selectLabel = document.createElement('label');
+        selectLabel.htmlFor = 'portfolio-selector';
+        selectLabel.id = 'portfolio-selector-label';
+        selectLabel.textContent = 'Portfolio:';
+
+        const selectWrapper = document.createElement('div');
+        selectWrapper.className = 'select-wrapper';
+        
+        const portfolioSelect = document.createElement('select');
+        portfolioSelect.id = 'portfolio-selector';
+        
+        selectWrapper.appendChild(portfolioSelect);
+        navContainer.appendChild(selectLabel);
+        navContainer.appendChild(selectWrapper);
+        detailsContainer.appendChild(navContainer);
+        
+        const contentContainer = document.createElement('div');
+        detailsContainer.appendChild(contentContainer);
+
+        projectionResults.forEach((r, index) => {
+            const option = document.createElement('option');
+            option.value = r.name;
+            option.textContent = r.name;
+            portfolioSelect.appendChild(option);
+            
+            const detailView = createDetailView(r, params);
+            detailView.id = `detail-${r.name.replace(/\s+/g, '-')}`;
+            if (index > 0) detailView.classList.add('hidden');
+            contentContainer.appendChild(detailView);
+        });
+
+        portfolioSelect.addEventListener('change', e => {
+            contentContainer.querySelectorAll('.detail-view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(`detail-${e.target.value.replace(/\s+/g, '-')}`).classList.remove('hidden');
+        });
+    }
+
+    function createDetailView(result, params) {
+        const container = document.createElement('div');
+        container.className = 'detail-view';
+
+        const scenarioTabs = document.createElement('div');
+        scenarioTabs.className = 'scenario-tabs';
+        container.appendChild(scenarioTabs);
+
+        const scenarios = ['Best (90th)', 'Middle (50th)', 'Worst (10th)'];
+        const scenarioKeys = ['good', 'median', 'poor'];
+
+        scenarios.forEach((s, i) => {
+            const tab = document.createElement('button');
+            tab.className = `scenario-tab ${i === 1 ? 'active' : ''}`;
+            tab.dataset.scenarioKey = scenarioKeys[i];
+            tab.textContent = s;
+            scenarioTabs.appendChild(tab);
+        });
+        
+        const scenarioContent = document.createElement('div');
+        container.appendChild(scenarioContent);
+
+        const createScenarioContent = (key) => {
+            const data = result.monteCarlo[key];
+            const content = document.createElement('div');
+            
+            const hasPathData = data.path && data.path.length > 0;
+            const finalYearData = hasPathData ? data.path[data.path.length - 1] : { withdrawals: 0, dividends: 0 };
+
+            const createSectionTable = (title, metrics) => {
+                const h3 = document.createElement('h3');
+                h3.textContent = title;
+                content.appendChild(h3);
+                
+                const table = document.createElement('table');
+                const tbody = table.createTBody();
+                metrics.forEach(m => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = m.label;
+                    row.insertCell().textContent = m.value;
+                });
+                content.appendChild(table);
+            };
+
+            createSectionTable('Snapshot', [
+                { label: 'Balance @ Retirement Start', value: formatNumber(data.balanceAtRetirement, 'currency') },
+                { label: 'Ending Balance (Horizon)', value: formatNumber(data.endingBalance, 'currency') },
+                { label: 'Phase 1 Contributions', value: formatNumber(params.initialContribution * params.accumulationYears, 'currency') },
+                { label: 'Phase 2 Withdrawals', value: formatNumber(hasPathData ? data.path.slice(params.accumulationYears).reduce((sum, yr) => sum + yr.withdrawals, 0) : 0, 'currency') }
+            ]);
+            
+            if (params.goal === 'retire') {
+                const withdrawalAmount = params.withdrawalStrategy === 'fixed_amount' ? params.withdrawalAmount : 0;
+                createSectionTable('Income', [
+                    { label: 'Dividend Yield @ Retirement', value: formatNumber(data.dividendYieldAtRetirement, 'percent') },
+                    { label: 'Dividends @ Start (yr 1 retired)', value: `${formatNumber(data.dividendsAtRetirement, 'currency')}/yr` },
+                    ...(withdrawalAmount > 0 ? [{ label: `% of ${formatNumber(withdrawalAmount, 'currency')} Covered (Start)`, value: formatNumber(data.dividendsAtRetirement / withdrawalAmount, 'percent', 0) }] : []),
+                    { label: 'Dividends @ Horizon', value: `${formatNumber(finalYearData.dividends, 'currency')}/yr` }
+                ]);
+            }
+
+            const yearTableContainer = document.createElement('div');
+            yearTableContainer.className = 'table-container';
+            const yearTable = document.createElement('table');
+            yearTable.id = `year-table-${result.name}-${key}`;
+            const yThead = yearTable.createTHead();
+            const yTbody = yearTable.createTBody();
+            const yHeadRow = yThead.insertRow();
+            
+            const isRetireGoal = params.goal === 'retire';
+            const headers = isRetireGoal
+                ? ['Year', 'Start', 'Contrib', 'Dividends', 'Withdrawals', 'Sales Needed', 'End']
+                : ['Year', 'Start', 'Contrib', 'Dividends', 'End'];
+            
+            headers.forEach(h => {
+                const th = document.createElement('th');
+                th.textContent = h;
+                yHeadRow.appendChild(th);
+            });
+            
+            if (hasPathData) {
+                data.path.forEach((yearData, index) => {
+                    const row = yTbody.insertRow();
+                    row.insertCell().textContent = yearData.year;
+                    row.insertCell().textContent = formatNumber(yearData.startBalance, 'currency');
+                    row.insertCell().textContent = formatNumber(yearData.contributions, 'currency');
+                    row.insertCell().textContent = formatNumber(yearData.dividends, 'currency');
+                    if (isRetireGoal) {
+                        row.insertCell().textContent = formatNumber(yearData.withdrawals, 'currency');
+                        row.insertCell().textContent = formatNumber(yearData.salesNeeded, 'currency');
+                    }
+                    row.insertCell().textContent = formatNumber(yearData.endBalance, 'currency');
+                    if(index > 4) row.classList.add('hidden', 'extra-year-row');
+                });
+            }
+            
+            yearTableContainer.appendChild(yearTable);
+            content.appendChild(yearTableContainer);
+
+            if(hasPathData && data.path.length > 5) {
+                const buttonWrapper = document.createElement('div');
+                buttonWrapper.style.textAlign = 'center';
+                const showMoreBtn = document.createElement('button');
+                showMoreBtn.className = 'toggle-year-btn add-btn';
+                showMoreBtn.textContent = `Show all ${data.path.length} years`;
+                buttonWrapper.appendChild(showMoreBtn);
+                const exportBtn = document.createElement('button');
+                exportBtn.className = 'toggle-year-btn';
+                exportBtn.textContent = `Export CSV`;
+                exportBtn.style.marginLeft = '10px';
+                buttonWrapper.appendChild(exportBtn);
+                content.appendChild(buttonWrapper);
+
+                showMoreBtn.addEventListener('click', () => {
+                    const rows = yearTable.querySelectorAll('.extra-year-row');
+                    const isHidden = rows.length > 0 && rows[0].classList.contains('hidden');
+                    rows.forEach(r => r.classList.toggle('hidden', !isHidden));
+                    showMoreBtn.textContent = isHidden ? 'Show fewer years' : `Show all ${data.path.length} years`;
+                });
+            }
+
+            return content;
+        };
+        
+        scenarioContent.appendChild(createScenarioContent('median'));
+
+        scenarioTabs.addEventListener('click', e => {
+            if (e.target.classList.contains('scenario-tab')) {
+                scenarioTabs.querySelectorAll('.scenario-tab').forEach(p => p.classList.remove('active'));
+                e.target.classList.add('active');
+                scenarioContent.innerHTML = '';
+                scenarioContent.appendChild(createScenarioContent(e.target.dataset.scenarioKey));
+            }
+        });
+
+        return container;
+    }
+
+    function renderProjectionChart(historicalData, projectionData, params) {
+        if (!window.Chart) {
+            console.error("Chart.js is not loaded.");
+            return;
+        }
+        const ctx = document.getElementById('projection-chart').getContext('2d'); if (projectionChartInstance) { projectionChartInstance.destroy(); }
+        const colors = ['#007aff', '#34c759', '#ff9500', '#af52de', '#ff3b30', '#5856d6'];
+        const datasets = [];
+        historicalData.forEach((p, i) => { datasets.push({ label: `${p.portfolio.name} (Historical)`, data: p.dailyValues.map(d => ({x: new Date(d.date).valueOf(), y: d.value})), borderColor: colors[i % colors.length], borderWidth: 2.5, pointRadius: 0, tension: 0.1 }); });
+        projectionData.forEach((p, i) => {
+            const historicalEnd = historicalData.find(h => h.portfolio.name === p.name).dailyValues.slice(-1)[0];
+            const projectionStartDate = new Date(historicalEnd.date);
+            const getPath = (pathData) => {
+                if (!pathData || pathData.length === 0) return [];
+                const fullPath = [{x: projectionStartDate.valueOf(), y: pathData[0]?.startBalance || 0}];
+                pathData.forEach((val, j) => {
+                    fullPath.push({x: new Date(projectionStartDate.getFullYear()+j+1, projectionStartDate.getMonth(), projectionStartDate.getDate()).valueOf(), y: val.endBalance});
+                });
+                return fullPath;
+            }
+            
+            datasets.push({ label: `${p.name} (Likely Future)`, data: getPath(p.monteCarlo.median.path), borderColor: colors[i % colors.length], borderDash: [6, 3], borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false });
+            
+            const goodPathData = getPath(p.monteCarlo.good.path);
+            const poorPathData = getPath(p.monteCarlo.poor.path);
+            const rangeData = poorPathData.concat(goodPathData.reverse());
+            datasets.push({ label: `${p.name} (Range of Outcomes)`, data: rangeData, borderColor: 'transparent', borderWidth: 0, pointRadius: 0, backgroundColor: colors[i % colors.length] + '1A', fill: 'origin'});
+        });
+        projectionChartInstance = new Chart(ctx, { type: 'line', data: { datasets: datasets }, options: { plugins: { legend: { labels: { filter: item => !item.text.includes('(Range of Outcomes)') } }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); }, label: function(context) { const label = context.dataset.label || ''; const value = formatNumber(context.parsed.y, 'currency'); return `${label}: ${value}`; } } } }, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { ticks: { callback: function(value) { return formatNumber(value, 'currency'); } } } } } });
+    }
+    // --- END: RESTORED PROJECTION RENDERING FUNCTIONS ---
 
 
     // --- Logging ---
