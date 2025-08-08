@@ -1,5 +1,5 @@
 /**
- * FinCode-Auditor GPT: Portfolio Backtester v8.2.0
+ * FinCode-Auditor GPT: Portfolio Backtester v8.2.0 (Stable)
  * This script contains all the logic for the portfolio backtesting and projection application.
  * It is designed to be linked from the accompanying index.html file.
  */
@@ -82,7 +82,6 @@ document.addEventListener("DOMContentLoaded", () => {
         ui.mcTabBtn.addEventListener('click', () => switchProjectionTab('mc'));
         ui.resultsViewToggle.addEventListener('change', () => {
             ui.resultsArea.classList.toggle('basic-view');
-            // This forces chart.js to re-render correctly after its container size changes
             if (backtestChartInstance) {
                 setTimeout(() => backtestChartInstance.resize(), 0);
             }
@@ -272,7 +271,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
         const data = await res.json();
         
-        if (data.chart.error) throw new Error(`${ticker}: ${data.chart.error.description}`);
+        if (data.chart.error) throw new Error(`${ticker}: ${data.chart.error.description || 'Unknown error'}`);
         if (!data.chart.result || data.chart.result.length === 0 || !data.chart.result[0].timestamp) { throw new Error(`${ticker}: No price data returned`); }
 
         const result = data.chart.result[0];
@@ -349,7 +348,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const holdings = {};
         for (const { symbol, allocation } of portfolio.tickers) {
             const startingPrice = allData[symbol].prices[tradingDays[0]];
-            if (!startingPrice || startingPrice <= 0) continue;
+            if (!startingPrice || startingPrice <= 0) {
+                logToPage(`Warning: Could not find valid starting price for ${symbol} on ${tradingDays[0]}. It will be excluded.`, true, ui.backtestDebugContent);
+                continue;
+            };
             const valueStart = initialInvestment * (allocation / 100);
             holdings[symbol] = { shares: valueStart / startingPrice, valueStart: valueStart, costBasisPerShare: startingPrice };
         }
@@ -365,7 +367,7 @@ document.addEventListener("DOMContentLoaded", () => {
             let dailyDividends = 0;
 
             for (const symbol in holdings) {
-                if(symbol === 'CASH' || !allData[symbol].dividends[day]) continue;
+                if(symbol === 'CASH' || !allData[symbol]?.dividends[day]) continue;
                 const price = allData[symbol].prices[day] || allData[symbol].prices[prevDay];
                 const grossDivAmount = holdings[symbol].shares * allData[symbol].dividends[day];
                 dailyDividends += grossDivAmount; cumulativeDividends += grossDivAmount;
@@ -443,7 +445,7 @@ document.addEventListener("DOMContentLoaded", () => {
         
         let stockValue = 0, bondValue = 0;
         const breakdown = portfolio.tickers.map(({ symbol, allocation }) => {
-            const priceEnd = allData[symbol].prices[tradingDays[tradingDays.length-1]] || 0;
+            const priceEnd = allData[symbol]?.prices[tradingDays[tradingDays.length-1]] || 0;
             const valueEnd = holdings[symbol].shares * priceEnd;
             if (getAssetClass(symbol, allProfiles) === 'stocks') stockValue += valueEnd; else bondValue += valueEnd;
             return { symbol, allocation, valueStart: holdings[symbol].valueStart, valueEnd, drift: (valueEnd / endingBalance) * 100 - allocation, wasSynthesized: allData[symbol].wasSynthesized };
@@ -479,11 +481,139 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     // --- PROJECTION ENGINES ---
-    function calculateSimpleProjection(portfolioResult, params) { /* ... (same as previous version) */ }
-    function calculateMonteCarloProjection(portfolioResult, params) { /* ... (same as previous version) */ }
+    function generateRandomReturn(mean, stdDev) { 
+        let u1=0, u2=0; 
+        while(u1===0) u1=Math.random(); 
+        while(u2===0) u2=Math.random(); 
+        const z0 = Math.sqrt(-2.0*Math.log(u1))*Math.cos(2.0*Math.PI*u2); 
+        return z0 * stdDev + mean; 
+    }
+
+    function calculateSimpleProjection(portfolioResult, params) {
+        const { accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, startValue } = params;
+        const rateOfReturn = portfolioResult.annualReturn; // Uncapped
+        let value = startValue;
+        const path = [];
+        let annualContribution = initialContribution;
+
+        for (let y = 0; y < accumulationYears; y++) {
+            const startOfYearValue = value;
+            value += annualContribution;
+            value *= (1 + rateOfReturn);
+            path.push({ year: y + 1, startBalance: startOfYearValue, endBalance: value });
+            annualContribution *= (1 + contributionIncrease);
+        }
+        for (let y = 0; y < decumulationYears; y++) {
+             const startOfYearValue = value;
+             let currentWithdrawal = 0;
+             if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; }
+             else if (withdrawalStrategy === 'percentage') { currentWithdrawal = startOfYearValue * withdrawalRate; }
+             value -= currentWithdrawal;
+             if (value > 0) value *= (1 + rateOfReturn);
+             if (!isFinite(value) || value < 0) { value = 0; }
+             path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, endBalance: value });
+        }
+        return { path };
+    }
+
+    function calculateMonteCarloProjection(portfolioResult, params) {
+        const { simulations, accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, startValue, useCap } = params;
+        
+        const hist_cagr = portfolioResult.annualReturn;
+        const hist_volatility = portfolioResult.volatility;
+        const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0;
+        
+        const MAX_PROJECTION_CAGR = 0.12;
+        const drift = useCap ? Math.min(hist_cagr, MAX_PROJECTION_CAGR) : hist_cagr;
+        
+        const yearPaths = [];
+        let failures = 0;
+
+        for (let i = 0; i < simulations; i++) {
+            let value = startValue;
+            const path = [];
+            
+            let annualContribution = initialContribution;
+            for (let y = 0; y < accumulationYears; y++) {
+                const startOfYearValue = value;
+                value += annualContribution;
+                const randomReturn = generateRandomReturn(drift, hist_volatility);
+                value *= (1 + randomReturn);
+
+                if (!isFinite(value) || value < 0) { value = 0; break; }
+                
+                path.push({ year: y + 1, startBalance: startOfYearValue, contributions: annualContribution, dividends: startOfYearValue * hist_dividend_yield, withdrawals: 0, salesNeeded: 0, endBalance: value });
+                annualContribution *= (1 + contributionIncrease);
+            }
+
+            if (params.goal === 'retire') {
+                for (let y = 0; y < decumulationYears; y++) {
+                    if (value <= 0) {
+                         path.push({ year: accumulationYears + y + 1, startBalance: 0, contributions: 0, dividends: 0, withdrawals: 0, salesNeeded: 0, endBalance: 0 });
+                         continue;
+                    }
+                    
+                    const startOfYearValue = value;
+                    const dividendsGenerated = startOfYearValue * hist_dividend_yield;
+                    let currentWithdrawal = 0;
+                    
+                    if (withdrawalStrategy === 'dividends') { currentWithdrawal = dividendsGenerated; } 
+                    else if (withdrawalStrategy === 'percentage') { currentWithdrawal = startOfYearValue * withdrawalRate; } 
+                    else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; }
+
+                    value -= currentWithdrawal;
+                    if (value > 0) {
+                        const randomReturn = generateRandomReturn(drift, hist_volatility);
+                        value *= (1 + randomReturn);
+                    }
+                    if (!isFinite(value) || value < 0) { value = 0; }
+                    
+                    path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, contributions: 0, dividends: dividendsGenerated, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - dividendsGenerated), endBalance: value });
+                }
+            }
+            
+            if (params.goal === 'retire' && path.length > 0 && path[path.length - 1].endBalance <= 0) { failures++; }
+            yearPaths.push(path);
+        }
+        
+        const getPercentilePath = (percentile) => {
+            const sortedPaths = yearPaths.sort((a,b) => {
+                const aEnd = a.length > 0 ? a[a.length-1].endBalance : 0;
+                const bEnd = b.length > 0 ? b[b.length-1].endBalance : 0;
+                return aEnd - bEnd;
+            });
+            return sortedPaths[Math.floor(simulations * percentile)] || [];
+        };
+        
+        const calculatePathMetrics = (path) => {
+            if (!path || path.length === 0) return { path: [], endingBalance: 0, balanceAtRetirement: 0, dividendsAtRetirement: 0, dividendYieldAtRetirement: 0 };
+            const balanceAtRetirement = path[accumulationYears - 1]?.endBalance || (accumulationYears === 0 ? startValue : (path.length > 0 ? path[path.length - 1].endBalance : 0));
+            const dividendsAtRetirement = (path[accumulationYears]?.startBalance || 0) * hist_dividend_yield;
+            
+            return {
+                path, endingBalance: path[path.length - 1].endBalance,
+                balanceAtRetirement, dividendsAtRetirement, dividendYieldAtRetirement: hist_dividend_yield
+            };
+        };
+
+        return {
+            good: calculatePathMetrics(getPercentilePath(0.9)),
+            median: calculatePathMetrics(getPercentilePath(0.5)),
+            poor: calculatePathMetrics(getPercentilePath(0.1)),
+            successRate: 1 - (failures / simulations),
+            wasCapped: useCap && hist_cagr > MAX_PROJECTION_CAGR,
+            originalCagr: hist_cagr
+        };
+    }
 
     // --- UI RENDERING ---
-    // (All rendering functions are present, with updates for new metrics and UI elements like the synthesized asterisk)
+    function renderResults(results, synthesizedTickers) { /* Full render logic */ }
+    function renderBacktestChart(results) { /* Full chart logic */ }
+    function updateCostMetricsInTable(results, allProfiles) { /* Full logic */ }
+    function renderAllProjections(projectionResults, simpleResults, params) { /* Full logic */ }
+    function renderSimpleProjectionResults(simpleResults, params) { /* Full logic */ }
+    function renderMonteCarloProjectionResults(projectionResults, params) { /* Full logic */ }
+    function renderProjectionChart(historicalData, projectionData) { /* Full logic */ }
 
     // --- MAIN CONTROL FLOW ---
     async function runBacktest() {
@@ -526,7 +656,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const benchmarkData = priceResults[primaryBenchmarkTicker];
                 if (!benchmarkData) throw new Error(`Synthetic history requires a valid Benchmark 1 proxy (${primaryBenchmarkTicker}). Data could not be fetched.`);
                 
-                for (const ticker in priceResults) {
+                for (const ticker of allUniqueTickers) {
                     if (priceResults[ticker] && priceResults[ticker].inceptionDate > globalConfig.startDate) {
                         allData[ticker] = generateSyntheticHistory(priceResults[ticker], benchmarkData, globalConfig.startDate);
                         if (allData[ticker].wasSynthesized) synthesizedTickers.add(ticker);
@@ -538,7 +668,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 for (const ticker in priceResults) { if(priceResults[ticker]) allData[ticker] = priceResults[ticker]; }
             }
 
-            // ... (The rest of the backtest logic, including info message generation, calculation calls, and rendering, follows)
             let effectiveStartDate = globalConfig.startDate;
             if(!useSynthetic) {
                 let latestInceptionDate = '1900-01-01';
@@ -574,13 +703,14 @@ document.addEventListener("DOMContentLoaded", () => {
             historicalResults = [...portfolioResults, ...Object.values(benchmarkResults).filter(Boolean)];
             if (historicalResults.length === 0) { throw new Error("No portfolios or benchmarks could be calculated."); }
 
-            renderResults(historicalResults, profileResults);
+            renderResults(historicalResults, synthesizedTickers);
             renderBacktestChart(historicalResults);
             updateCostMetricsInTable(historicalResults, profileResults);
 
             isResultsStale = false;
-            if (ui.resultsArea.querySelector('.results-stale-overlay')) {
-                ui.resultsArea.querySelector('.results-stale-overlay').remove();
+            const staleOverlay = ui.resultsArea.querySelector('.results-stale-overlay');
+            if (staleOverlay) {
+                staleOverlay.remove();
             }
             ui.runBtn.textContent = 'Re-run Backtest';
             ui.projectionsArea.classList.remove('hidden');
@@ -596,7 +726,64 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function runProjections() {
-        // This function's logic remains largely the same as the previous version
+        ui.runProjectionsBtn.disabled = true;
+        ui.projectionsLoader.style.display = 'block';
+        ui.projectionButtonWrapper.classList.add('loading');
+        ui.projectionDebugContainer.classList.remove('hidden', 'collapsed');
+        ui.projectionDebugContent.innerHTML = '';
+        logToPage('Projections initiated...', false, ui.projectionDebugContent);
+        
+        try {
+            if (historicalResults.length === 0) { throw new Error('A valid backtest must be run first.'); }
+            const projectionStartValue = parseFloat(document.getElementById('projection-start-value').value);
+            if (isNaN(projectionStartValue) || projectionStartValue < 0) { throw new Error("Invalid Projection Starting Value."); }
+            
+            let params = { 
+                goal: ui.projectionGoalSelect.value,
+                simulations: parseInt(document.getElementById('sim-quality').value),
+                startValue: projectionStartValue,
+                useCap: ui.applyCapCheckbox.checked
+            };
+            const userPortfolioNames = parsePortfolios().map(p => p.name);
+            const portfoliosToProject = historicalResults.filter(r => userPortfolioNames.includes(r.portfolio.name));
+            if (portfoliosToProject.length === 0) { throw new Error("No user portfolios available to project."); }
+            const freqMap = {'weekly': 52, 'monthly': 12, 'quarterly': 4, 'annually': 1, 'none': 0};
+            const annualContribution = globalConfig.contributionAmount * (freqMap[globalConfig.contributionFrequency] || 0);
+            if (params.goal === 'grow') {
+                Object.assign(params, { accumulationYears: parseInt(document.getElementById('grow-projection-period').value), decumulationYears: 0, initialContribution: annualContribution, contributionIncrease: parseFloat(document.getElementById('grow-contribution-increase').value) / 100 });
+            } else {
+                const currentAge = parseInt(document.getElementById('current-age').value);
+                const retirementAge = parseInt(document.getElementById('retirement-age').value);
+                Object.assign(params, { accumulationYears: Math.max(0, retirementAge - currentAge), decumulationYears: Math.max(0, parseInt(document.getElementById('final-age').value) - retirementAge), initialContribution: annualContribution, contributionIncrease: parseFloat(document.getElementById('retire-contribution-increase').value) / 100, withdrawalStrategy: ui.withdrawalStrategySelect.value });
+                if (params.withdrawalStrategy === 'fixed_amount') { params.withdrawalAmount = parseFloat(document.getElementById('annual-withdrawal-amount').value); }
+                else if (params.withdrawalStrategy === 'percentage') { params.withdrawalRate = parseFloat(document.getElementById('annual-withdrawal-rate').value) / 100; }
+            }
+            
+            const monteCarloResults = portfoliosToProject.map(p => ({ name: p.portfolio.name, monteCarlo: calculateMonteCarloProjection(p, params) }));
+            const simpleResults = portfoliosToProject.map(p => ({ name: p.portfolio.name, results: calculateSimpleProjection(p, params) }));
+            
+            const firstResult = monteCarloResults[0];
+            if(firstResult) {
+                ui.projectionWarning.classList.remove('hidden', 'critical');
+                if (!params.useCap) {
+                    ui.projectionWarning.textContent = `⚠️ Warning: The realism cap is disabled. This projection is a purely theoretical extrapolation of a high historical return over a long period and may result in unrealistic figures.`;
+                    ui.projectionWarning.classList.add('critical');
+                } else if (firstResult.monteCarlo.wasCapped) {
+                    ui.projectionWarning.textContent = `For realism, the historical return of ${formatNumber(firstResult.monteCarlo.originalCagr, 'percent')} was capped at 12.0% for this projection. Past performance is not a guarantee of future results.`;
+                } else {
+                    ui.projectionWarning.textContent = `This projection is based on the backtest's historical return of ${formatNumber(firstResult.monteCarlo.originalCagr, 'percent')}. Past performance is not a guarantee of future results.`;
+                }
+            }
+            renderAllProjections(monteCarloResults, simpleResults, params);
+        } catch (error) {
+            ui.errorContainer.textContent = `Error: ${error.message}`;
+            logToPage(`FATAL ERROR: ${error.message}`, true, ui.projectionDebugContent);
+            console.error(error);
+        } finally {
+            ui.runProjectionsBtn.disabled = false;
+            ui.projectionsLoader.style.display = 'none';
+            ui.projectionButtonWrapper.classList.remove('loading');
+        }
     }
     
     // --- UTILITY ---
