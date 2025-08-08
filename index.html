@@ -1,1 +1,1619 @@
 
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha256-q/N0JOCV4oqvX1S1iM6vFkPZ0pB1yBf9N65q0yC1Vcc='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
+  <title>Portfolio Backtester v7.4.0 (Audited)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
+  <style>
+    :root {
+      --primary-color: #007aff; --primary-hover: #005ecb; --border-color: #dee2e6;
+      --background-main: #f0f2f5; --background-card: #ffffff; --text-color: #212529;
+      --text-light: #6c757d; --error-color: #d93025; --green: #34c759; --red: #ff3b30;
+      --info-bg: #e7f3ff; --info-border: #90b8de; --info-text: #004085;
+      --warn-bg: #fff3cd; --warn-border: #ffeeba; --warn-text: #856404;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--background-main); color: var(--text-color); margin: 0; padding: 0 0 40px 0;
+    }
+    .app-container { max-width: 1200px; margin: 0 auto; padding: 10px; }
+    h1, h2, h3 { color: var(--text-color); }
+    h1 { font-size: 26px; margin-bottom: 5px; text-align: center; }
+    h2 { font-size: 20px; margin-top: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+    h3 { font-size: 18px; margin-top: 25px; margin-bottom: -5px; }
+    .version { font-size: 14px; color: var(--text-light); margin-top: 0; margin-bottom: 20px; text-align: center; }
+    .section-card {
+      background: var(--background-card); border-radius: 10px; padding: 20px;
+      margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+    .control-group { display: flex; flex-direction: column; gap: 6px; }
+    .control-group label { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+    .control-group input, .control-group select {
+      width: 100%; box-sizing: border-box; font-size: 15px; padding: 10px;
+      border-radius: 6px; border: 1px solid var(--border-color);
+    }
+    /* --- Accessibility Fix: Visible Focus States --- */
+    input:focus-visible, select:focus-visible, button:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.2);
+    }
+    .help-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; border-radius: 50%; background-color: #e9ecef;
+        color: #6c757d; font-size: 11px; font-weight: bold;
+        cursor: help; user-select: none; flex-shrink: 0;
+    }
+    #master-tooltip {
+        visibility: hidden; opacity: 0; transition: opacity 0.2s, visibility 0.2s;
+        position: fixed;
+        width: 260px; background-color: #343a40; color: #fff;
+        text-align: left; border-radius: 6px; padding: 10px;
+        z-index: 1000; pointer-events: none;
+        font-size: 13px; font-weight: 400; line-height: 1.5;
+    }
+    #portfolios-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+    .portfolio-card { border: 1px solid transparent; border-radius: 8px; padding: 15px; background: #f8f9fa; }
+    .portfolio-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .portfolio-header input[type="text"] { font-size: 18px; font-weight: bold; border: none; background: transparent; padding: 5px; width: 70%; }
+    .remove-portfolio-btn { background: #e9ecef; color: var(--text-light); border: none; border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .ticker-input-row { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .ticker-input-row input { text-transform: uppercase; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; }
+    .remove-ticker-btn { background: var(--red); color: white; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 14px; line-height: 26px; text-align: center; }
+    .add-btn { background: var(--primary-color); color: white; border: none; border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 500; }
+    .add-ticker-btn { font-size: 14px; padding: 8px 12px; }
+
+    .run-button-container { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 25px 0; }
+    #run-backtest-btn, #run-projections-btn { font-size: 16px; padding: 12px 30px; }
+    #run-backtest-btn:disabled, #run-projections-btn:disabled { background-color: #a0c3ff; cursor: not-allowed; }
+    .loader { display: none; width: 24px; height: 24px; border: 3px solid var(--primary-color); border-bottom-color: transparent; border-radius: 50%; animation: rotation 1s linear infinite; }
+    @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    /* --- CSS Fix: Style for mini-loader --- */
+    .mini-loader { display: inline-block; vertical-align: middle; width: 14px; height: 14px; border: 2px solid var(--primary-color); border-bottom-color: transparent; border-radius: 50%; animation: rotation 0.8s linear infinite; }
+    #error-container { color: var(--error-color); text-align: center; font-weight: bold; margin: 15px auto; max-width: 600px; }
+    #info-container {
+        display: none; padding: 12px 18px; margin: -10px auto 20px auto; max-width: 1160px;
+        border-radius: 8px; text-align: left; font-size: 14px;
+        background-color: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text);
+    }
+    #info-container ul { margin: 0; padding-left: 20px; }
+    #info-container li { margin-bottom: 5px; }
+
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 10px; margin-top: 15px; }
+    th, td { border: 1px solid var(--border-color); padding: 10px 12px; text-align: right; font-size: 14px; white-space: nowrap; vertical-align: middle; }
+    th { background: #e9ecef; font-weight: 600; text-align: center; }
+    td:first-child, th:first-child { text-align: left; font-weight: bold; white-space: normal; }
+    .positive { color: var(--green); } .negative { color: var(--red); }
+    .hidden { display: none; }
+
+    .portfolio-pills { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    .portfolio-pill { padding: 8px 16px; border-radius: 20px; background-color: #e9ecef; border: 1px solid #e9ecef; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+    .portfolio-pill.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+
+    .phase-header { font-size: 16px; font-weight: 600; margin-top: 20px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e9ecef; }
+    .indented-settings { margin-top: 15px; margin-left: 20px; padding-left: 15px; border-left: 3px solid #e9ecef; }
+    .projections-button-wrapper { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 25px; }
+    .outcome-explanation { font-size: 12px; color: var(--text-light); font-weight: 400; display: block; margin-top: 2px; line-height: 1.3; }
+    .debug-log {
+      background-color: #2b2b2b; border: 1px solid #555; border-radius: 8px;
+      margin: 20px 0; padding: 15px; font-family: monospace; font-size: 13px;
+      color: #ccc; max-height: 250px; overflow-y: auto; white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .debug-log h4 { margin-top: 0; color: #eee; border-bottom: 1px solid #555; padding-bottom: 8px; }
+    .debug-log p { margin: 0 0 5px 0; }
+    footer {
+        text-align: center; font-size: 12px; color: var(--text-light);
+        margin: 40px auto 20px auto; padding: 20px; max-width: 800px;
+        border-top: 1px solid var(--border-color); line-height: 1.6;
+    }
+
+    #projection-details-container { border-top: 1px solid var(--border-color); margin-top: 30px; padding-top: 10px; }
+    .projection-detail-nav { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+    #portfolio-selector-label { font-size: 16px; font-weight: 600; flex-shrink: 0; }
+
+    .select-wrapper {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+        max-width: 350px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background-color: white;
+        overflow: hidden;
+    }
+    .select-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: 15px;
+        transform: translateY(-50%);
+        width: 10px;
+        height: 10px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%236c757d'%3E%3Cpath d='M8 12L2 6h12z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        pointer-events: none;
+    }
+    #portfolio-selector {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        width: 100%;
+        padding: 10px 40px 10px 15px;
+        border: none;
+        background-color: transparent;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .scenario-tabs {
+        display: flex; justify-content: center; gap: 8px;
+        margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;
+    }
+    .scenario-tab {
+        padding: 6px 14px; border-radius: 6px; background-color: transparent;
+        border: 1px solid transparent; cursor: pointer; font-weight: 600;
+        color: var(--text-light); transition: all 0.2s; font-size: 14px;
+    }
+    .scenario-tab:hover { background-color: #e9ecef; }
+    .scenario-tab.active { background-color: var(--primary-color); color: white; }
+    .toggle-year-btn { font-size: 12px; padding: 5px 10px; margin-top: 5px; cursor: pointer; }
+
+    @media (max-width: 768px) {
+      .app-container { padding: 5px; } .section-card { padding: 15px; }
+      h1 { font-size: 24px; } h2 { font-size: 20px; }
+      #setup-card .controls-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      #retire-settings .controls-grid,
+      #grow-settings .controls-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="master-tooltip"></div>
+  <main class="app-container">
+    <h1>Portfolio Backtester</h1>
+    <p class="version">Version 7.4.0 (Audited)</p>
+
+<!-- Setup Section -->
+<section id="setup-card" class="section-card">
+  <h2>1. Backtest Setup</h2>
+  <div class="controls-grid">
+    <div class="control-group"><label for="start-date">Start Date <span class="help-icon" data-tooltip="The first day included in the historical test period. The actual start may be adjusted if an asset was created after this date.">?</span></label><input type="date" id="start-date" value="1950-01-03"></div>
+    <div class="control-group"><label for="end-date">End Date <span class="help-icon" data-tooltip="The last day included in the historical test period.">?</span></label><input type="date" id="end-date"></div>
+    <div class="control-group"><label for="initial-investment">Initial Investment ($) <span class="help-icon" data-tooltip="The starting amount of money in your portfolio on the Start Date.">?</span></label><input type="number" id="initial-investment" value="100000" min="0"></div>
+    <div class="control-group"><label for="contribution-amount">Contribution Amount ($) <span class="help-icon" data-tooltip="The amount of new money you add to your portfolio at each interval.">?</span></label><input type="number" id="contribution-amount" value="400" min="0"></div>
+    <div class="control-group"><label for="contribution-frequency">Contribution Frequency <span class="help-icon" data-tooltip="How often you add new money to your portfolio.">?</span></label><select id="contribution-frequency"><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="none">None</option></select></div>
+    <div class="control-group"><label for="rebalance-frequency">Rebalance Frequency <span class="help-icon" data-tooltip="How often the portfolio is reset to its original target allocation. This involves selling winners and buying losers.">?</span></label><select id="rebalance-frequency"><option value="annually" selected>Annually</option><option value="quarterly">Quarterly</option><option value="never">Never</option></select></div>
+    <div class="control-group"><label for="reinvest-dividends">Reinvest Dividends? <span class="help-icon" data-tooltip="Choose whether cash from dividends is automatically used to buy more shares or held as cash.">?</span></label><select id="reinvest-dividends"><option value="true" selected>True</option><option value="false">False</option></select></div>
+    <div class="control-group"><label for="risk-free-rate">Risk-Free Rate (%) <span class="help-icon" data-tooltip="Used for Sharpe/Sortino ratios. This is treated as a constant value. The US 3-Month T-bill is the academic standard (e.g., ~4-5%). Defaulting to 0% is common for simplicity.">?</span></label><input type="number" id="risk-free-rate" value="0" min="0"></div>
+    <div class="control-group"><label for="dividend-tax-rate">Dividend Tax Rate (%) <span class="help-icon" data-tooltip="The tax rate applied to dividends received. Set to 0 for tax-advantaged accounts like an IRA or 401(k).">?</span></label><input type="number" id="dividend-tax-rate" value="0" min="0"></div>
+    <div class="control-group"><label for="gains-tax-rate">Capital Gains Tax (%) <span class="help-icon" data-tooltip="The tax rate applied to profits when assets are sold. NOTE: This feature is not yet implemented in calculations and is disabled.">?</span></label><input type="number" id="gains-tax-rate" value="0" min="0" disabled></div>
+    <div class="control-group"><label for="benchmark1">Benchmark 1 <span class="help-icon" data-tooltip="A market index (like SPY for the S&P 500) to compare your portfolio's performance against.">?</span></label><input type="text" id="benchmark1" value="SPY"></div>
+    <div class="control-group"><label for="benchmark2">Benchmark 2 <span class="help-icon" data-tooltip="A second market index to include for comparison.">?</span></label><input type="text" id="benchmark2" value="QQQ"></div>
+  </div>
+</section>
+
+<!-- Portfolio Configuration Section -->
+<section class="section-card">
+  <h2>2. Configure Portfolios</h2>
+  <div id="portfolios-container"></div>
+  <button id="add-portfolio-btn" class="add-btn" style="margin-top: 15px;">+ Add Portfolio</button>
+</section>
+
+<div class="run-button-container">
+    <button id="run-backtest-btn" class="add-btn">Run Backtest</button>
+    <div id="loader" class="loader"></div>
+</div>
+<!-- HTML Fix: Add aria-live for accessibility -->
+<div id="error-container" aria-live="polite"></div>
+<div id="info-container" aria-live="polite"></div>
+<div id="backtest-debug-container" class="debug-log hidden"><h4>Backtest Debug Log:</h4></div>
+
+<!-- Results Dashboard -->
+<div id="results-area" class="hidden">
+  <section class="section-card" style="padding-bottom: 5px;"><h2>3. Backtest Results</h2></section>
+  <!-- UX Fix: Add Performance Chart Section -->
+  <section id="performance-chart-card" class="section-card hidden">
+    <h2>Performance Chart</h2>
+    <div style="width: 100%; max-width: 900px; margin: auto; padding-top: 10px;">
+        <canvas id="backtest-chart"></canvas>
+    </div>
+  </section>
+  <section class="section-card"><h2>Capital Snapshot</h2><div id="snapshot-table-container" class="table-container"></div></section>
+  <section class="section-card"><h2>Asset Allocation</h2><div id="allocation-table-container" class="table-container"></div></section>
+  <section class="section-card"><h2>Income & Yield</h2><div id="income-table-container" class="table-container"></div></section>
+  <section class="section-card"><h2>Costs & Efficiency</h2><div id="costs-table-container" class="table-container"></div></section>
+  <section class="section-card"><h2>Risk & Volatility</h2><div id="risk-table-container" class="table-container"></div></section>
+  <section class="section-card"><h2>Drawdowns</h2><div id="drawdown-table-container" class="table-container"></div></section>
+  <section class="section-card"><h2>Consistency</h2><div id="consistency-table-container" class="table-container"></div></section>
+  <section class="section-card">
+    <h2>Holdings Breakdown</h2>
+    <div id="holdings-tables-container"></div>
+  </section>
+</div>
+
+<!-- Future Projections Section -->
+<section id="projections-area" class="section-card hidden">
+    <h2>4. Future Projections</h2>
+    <div class="control-group" style="margin-bottom: 20px;">
+        <label for="projection-goal">What is your goal? <span class="help-icon" data-tooltip="Choose a goal. Projections use the historical return and volatility from the backtest as the baseline for the simulation.">?</span></label>
+        <select id="projection-goal">
+            <option value="grow" selected>Continue saving and grow my portfolio</option>
+            <option value="retire">Plan for a future retirement income</option>
+        </select>
+    </div>
+
+    <div class="controls-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+        <div class="control-group">
+            <label for="projection-start-value">Projection Starting Value ($) <span class="help-icon" data-tooltip="The starting balance for the future projection. This defaults to the ending balance from your first portfolio's backtest, but you can override it to model a different scenario.">?</span></label>
+            <input type="number" id="projection-start-value" value="0" min="0">
+        </div>
+        <div class="control-group">
+            <label for="sim-quality">Simulation Quality <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy.">?</span></label>
+            <select id="sim-quality">
+                <option value="1000">Fast</option>
+                <option value="5000" selected>Recommended</option>
+                <option value="10000">High Precision</option>
+            </select>
+        </div>
+    </div>
+    
+    <div id="grow-settings">
+        <div class="controls-grid">
+            <div class="control-group"><label for="grow-projection-period">Projection Period (Years) <span class="help-icon" data-tooltip="How many years into the future you want to simulate (1–100).">?</span></label><input type="number" id="grow-projection-period" value="10" min="1" max="100"></div>
+            <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="grow-inflation-rate" value="0" min="0"></div>
+            <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="grow-contribution-increase" value="0" min="0"></div>
+        </div>
+    </div>
+    <div id="retire-settings" class="hidden">
+        <div class="control-group" style="margin-bottom: 20px;"><label for="current-age">What is your current age? <span class="help-icon" data-tooltip="Your current age. This is used as the starting point for retirement projections.">?</span></label><input type="number" id="current-age" value="20" min="0"></div>
+        <div class="phase-header">Phase 1: Your Working Years (Saving)</div>
+        <div class="controls-grid">
+             <div class="control-group"><label for="retirement-age">At what age do you want to retire? <span class="help-icon" data-tooltip="The age you plan to stop working and start drawing an income from your portfolio.">?</span></label><input type="number" id="retirement-age" value="65" min="0"></div>
+             <div class="control-group"><label for="retire-contribution-increase">Annual Saving Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="retire-contribution-increase" value="0" min="0"></div>
+        </div>
+        <div class="phase-header">Phase 2: Your Retirement Years (Income)</div>
+        <div class="controls-grid">
+            <div class="control-group">
+                <label for="withdrawal-strategy">Retirement income plan? <span class="help-icon" data-tooltip="Choose how you want to receive your income in retirement. This determines how money is withdrawn from your portfolio.">?</span></label>
+                <select id="withdrawal-strategy">
+                    <option value="dividends">Live Off Dividend Income Only</option>
+                    <option value="fixed_amount" selected>Withdraw a Fixed Amount Annually</option>
+                    <option value="percentage">Withdraw a Percentage Annually</option>
+                </select>
+            </div>
+            <div class="control-group"><label for="final-age">How long should income last? <span class="help-icon" data-tooltip="The age until which you need your retirement income to last.">?</span></label><input type="number" id="final-age" value="95" min="0"></div>
+        </div>
+        <div class="indented-settings">
+            <div class="control-group hidden" id="fixed_amount_setting"><label for="annual-withdrawal-amount">Annual Withdrawal Amount ($) <span class="help-icon" data-tooltip="The amount of money you plan to withdraw each year for living expenses in retirement.">?</span></label><input type="number" id="annual-withdrawal-amount" value="50000" min="0"></div>
+            <div class="control-group hidden" id="percentage_setting"><label for="annual-withdrawal-rate">Annual Withdrawal Rate (%) <span class="help-icon" data-tooltip="Typical rule-of-thumb is 4%. Higher % = higher risk of running out of money.">?</span></label><input type="number" id="annual-withdrawal-rate" value="4" min="0"></div>
+        </div>
+         <div class="control-group" style="margin-top:20px;">
+            <label for="retire-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="retire-inflation-rate" value="0" min="0">
+        </div>
+    </div>
+    <div class="projections-button-wrapper">
+        <button id="run-projections-btn" class="add-btn">Run Projections</button>
+        <div id="projections-loader" class="loader"></div>
+    </div>
+    <div id="projection-debug-container" class="debug-log hidden"><h4>Projection Debug Log:</h4></div>
+    <div id="projections-results-area" class="hidden" style="margin-top: 20px;"></div>
+    <div id="projection-chart-container" class="hidden"><div style="width: 100%; max-width: 900px; margin: auto; padding-bottom: 20px;"><canvas id="projection-chart"></canvas></div></div>
+</section>
+<footer>
+    <p><strong>Disclaimer:</strong> This tool is for informational and illustrative purposes only. The results are based on historical data and Monte Carlo simulations, which are not guarantees of future performance. Past performance is not indicative of future results. All investments involve risk and may lose value.</p>
+    <p>Market data is fetched via public CORS proxies and may be delayed or unavailable at times. Do not base real-world financial decisions solely on this tool.</p>
+</footer>
+  </main>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // --- Globals & UI References ---
+    let historicalResults = [];
+    let backtestChartInstance = null;
+    let projectionChartInstance = null;
+    let portfolioCount = 0;
+    let primaryBenchmarkTicker = 'SPY';
+    let globalConfig = {};
+
+    const masterTooltip = document.getElementById('master-tooltip');
+    const portfoliosContainer = document.getElementById('portfolios-container');
+    const errorContainer = document.getElementById('error-container');
+    const infoContainer = document.getElementById('info-container');
+    const resultsArea = document.getElementById('results-area');
+    const performanceChartCard = document.getElementById('performance-chart-card');
+    const projectionsArea = document.getElementById('projections-area');
+    const addPortfolioBtn = document.getElementById('add-portfolio-btn');
+    const runBtn = document.getElementById('run-backtest-btn');
+    const loader = document.getElementById('loader');
+    const runProjectionsBtn = document.getElementById('run-projections-btn');
+    const projectionsLoader = document.getElementById('projections-loader');
+    const projectionsResultsArea = document.getElementById('projections-results-area');
+    const projectionChartContainer = document.getElementById('projection-chart-container');
+    const backtestDebugContainer = document.getElementById('backtest-debug-container');
+    const projectionDebugContainer = document.getElementById('projection-debug-container');
+    const projectionGoalSelect = document.getElementById('projection-goal');
+    const growSettings = document.getElementById('grow-settings');
+    const retireSettings = document.getElementById('retire-settings');
+    const withdrawalStrategySelect = document.getElementById('withdrawal-strategy');
+    const fixedAmountSetting = document.getElementById('fixed_amount_setting');
+    const percentageSetting = document.getElementById('percentage_setting');
+
+    // --- Dynamic Defaults ---
+    function setDynamicDefaults() {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        document.getElementById('end-date').value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    // --- Tooltip Logic ---
+    document.addEventListener('mouseover', (e) => {
+        if (e.target.classList.contains('help-icon')) {
+            const tooltipText = e.target.dataset.tooltip; if (!tooltipText) return;
+            masterTooltip.textContent = tooltipText;
+            const iconRect = e.target.getBoundingClientRect();
+            let top = iconRect.top - masterTooltip.offsetHeight - 8;
+            let left = iconRect.left + (iconRect.width / 2) - (masterTooltip.offsetWidth / 2);
+            if (top < 0) { top = iconRect.bottom + 8; }
+            if (left < 10) left = 10;
+            if (left + masterTooltip.offsetWidth > window.innerWidth - 10) { left = window.innerWidth - masterTooltip.offsetWidth - 10; }
+            masterTooltip.style.left = `${left}px`; masterTooltip.style.top = `${top}px`;
+            masterTooltip.style.visibility = 'visible'; masterTooltip.style.opacity = '1';
+        }
+    });
+    document.addEventListener('mouseout', (e) => {
+        if (e.target.classList.contains('help-icon')) {
+            masterTooltip.style.visibility = 'hidden'; masterTooltip.style.opacity = '0';
+        }
+    });
+    
+    // --- Portfolio Builder & Parsing ---
+    function addPortfolio(name = '', tickers = []) {
+        portfolioCount++;
+        const card = document.createElement('div');
+        card.className = 'portfolio-card';
+        card.id = `portfolio-${portfolioCount}`;
+
+        const header = document.createElement('div');
+        header.className = 'portfolio-header';
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = name || `Portfolio ${portfolioCount}`;
+        nameInput.className = 'portfolio-name-input';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-portfolio-btn';
+        removeBtn.textContent = '×'; // Using textContent is safer
+        removeBtn.setAttribute('aria-label', 'Remove Portfolio'); // Accessibility fix
+        removeBtn.addEventListener('click', () => card.remove());
+
+        header.appendChild(nameInput);
+        header.appendChild(removeBtn);
+
+        const tickersList = document.createElement('div');
+        tickersList.className = 'tickers-list';
+
+        const addTickerBtn = document.createElement('button');
+        addTickerBtn.className = 'add-ticker-btn add-btn';
+        addTickerBtn.textContent = '+ Add Ticker';
+        addTickerBtn.addEventListener('click', () => addTicker(card));
+
+        card.appendChild(header);
+        card.appendChild(tickersList);
+        card.appendChild(addTickerBtn);
+        portfoliosContainer.appendChild(card);
+
+        if (tickers.length > 0) { tickers.forEach(t => addTicker(card, t.symbol, t.alloc)); } 
+        else { addTicker(card); }
+    }
+
+    function addTicker(portfolioCard, ticker = '', allocation = '') {
+        const tickersList = portfolioCard.querySelector('.tickers-list');
+        const row = document.createElement('div');
+        row.className = 'ticker-input-row';
+
+        const tickerInput = document.createElement('input');
+        tickerInput.type = 'text';
+        tickerInput.placeholder = 'Ticker';
+        tickerInput.className = 'ticker-input';
+        tickerInput.value = ticker;
+        tickerInput.style.width = '50%';
+
+        const allocInput = document.createElement('input');
+        allocInput.type = 'number';
+        allocInput.placeholder = '%';
+        allocInput.className = 'allocation-input';
+        allocInput.value = allocation;
+        allocInput.style.width = '35%';
+        allocInput.min = "0"; // Validation fix
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-ticker-btn';
+        removeBtn.textContent = '×'; // Safer than innerHTML
+        removeBtn.setAttribute('aria-label', 'Remove Ticker'); // Accessibility fix
+        removeBtn.addEventListener('click', () => row.remove());
+
+        row.appendChild(tickerInput);
+        row.appendChild(allocInput);
+        row.appendChild(removeBtn);
+        tickersList.appendChild(row);
+    }
+
+    function parsePortfolios() {
+        const portfolios = [];
+        document.querySelectorAll('.portfolio-card').forEach((card, i) => {
+            const tickers = []; let totalAllocation = 0;
+            const portfolioName = card.querySelector('.portfolio-name-input').value;
+            card.querySelectorAll('.ticker-input-row').forEach(row => {
+                const ticker = row.querySelector('.ticker-input').value.trim().toUpperCase();
+                const allocation = parseFloat(row.querySelector('.allocation-input').value);
+                if (ticker && allocation > 0) { tickers.push({ symbol: ticker, allocation }); totalAllocation += allocation; }
+            });
+            if (tickers.length > 0 && Math.abs(totalAllocation - 100) > 0.1) { throw new Error(`Allocations in "${portfolioName}" must sum to 100%. Current: ${totalAllocation.toFixed(1)}%.`); }
+            if (tickers.length > 0) { portfolios.push({ id: `p${i+1}`, name: portfolioName, tickers }); }
+        });
+        return portfolios;
+    }
+    
+    // --- Data Fetching & Validation ---
+    // Note: External CORS proxies are inherently fragile.
+    const proxies = {
+        price: ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url="],
+        profile: ["https://api.allorigins.win/raw?url=", "https://corsproxy.io/?"]
+    };
+    const MAX_ATTEMPTS_PER_PROXY = 2;
+    const RETRY_DELAY_MS = 500;
+    
+    async function fetchAllWithRetries(requests, proxyOrder, requestType, logContainer) {
+        let results = {};
+        let requestsToProcess = requests;
+
+        for (let i = 0; i < proxyOrder.length; i++) {
+            const proxyUrl = proxyOrder[i];
+            const proxyName = new URL(proxyUrl).hostname;
+            
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_PROXY; attempt++) {
+                if (requestsToProcess.length === 0) break;
+                logToPage(`[SYSTEM] ${requestType} data: Attempt ${attempt}/${MAX_ATTEMPTS_PER_PROXY} for ${requestsToProcess.length} requests via proxy: ${proxyName}...`, false, logContainer);
+
+                const promises = requestsToProcess.map(req => req.fetchFn(proxyUrl, ...req.args)
+                    .then(value => ({key: req.key, value}))
+                    .catch(reason => Promise.reject({key: req.key, reason}))
+                );
+                const settled = await Promise.allSettled(promises);
+                
+                const stillFailing = [];
+                settled.forEach(result => {
+                    if (result.status === 'fulfilled') {
+                        results[result.value.key] = result.value.value;
+                    } else {
+                        const failedReq = requestsToProcess.find(req => req.key === result.reason.key);
+                        if (failedReq) {
+                            stillFailing.push(failedReq);
+                            if (attempt === 1 && i === 0) {
+                                logToPage(`[FETCH] Ticker: ${failedReq.key}, Failed via ${proxyName}. Reason: ${result.reason.reason.message}`, true, logContainer);
+                            }
+                        }
+                    }
+                });
+
+                requestsToProcess = stillFailing;
+
+                if (requestsToProcess.length > 0 && attempt < MAX_ATTEMPTS_PER_PROXY) {
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+                }
+            }
+
+            if (requestsToProcess.length === 0) break;
+            if (i < proxyOrder.length - 1) {
+                 logToPage(`[SYSTEM] ${requestsToProcess.length} requests still failing. Switching to next proxy...`, false, logContainer);
+            }
+        }
+        
+        if(requestsToProcess.length > 0) {
+            results.failures = requestsToProcess.map(req => req.key);
+        }
+
+        return results;
+    }
+
+    async function fetchTickerData(proxy, ticker, startDate, endDate) {
+        const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
+        const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startTimestamp}&period2=${endTimestamp}&interval=1d&events=div`;
+        
+        const res = await fetch(proxy + encodeURIComponent(url));
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        const data = await res.json();
+        
+        if (data.chart.error) throw new Error(data.chart.error.message);
+        if (!data.chart.result || data.chart.result.length === 0 || !data.chart.result[0].timestamp) { throw new Error(`No price data returned`); }
+
+        const result = data.chart.result[0];
+        const prices = {};
+        result.timestamp.forEach((ts, i) => { const date = new Date(ts * 1000).toISOString().split('T')[0]; if (result.indicators.quote[0].close[i] !== null) { prices[date] = result.indicators.quote[0].close[i]; } });
+        const dividends = {};
+        if (result.events && result.events.dividends) { Object.values(result.events.dividends).forEach(div => { const date = new Date(div.date * 1000).toISOString().split('T')[0]; dividends[date] = (dividends[date] || 0) + div.amount; }); }
+        
+        const firstTradeTimestamp = result.meta?.firstTradeDate;
+        const inceptionDate = firstTradeTimestamp ? new Date(firstTradeTimestamp * 1000).toISOString().split('T')[0] : 'N/A';
+        
+        return { prices, dividends, inceptionDate };
+    }
+
+    async function fetchTickerProfile(proxy, ticker) {
+        const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=fundProfile`;
+        const res = await fetch(proxy + encodeURIComponent(url));
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        const data = await res.json();
+        
+        const profile = data?.quoteSummary?.result?.[0]?.fundProfile;
+        if (!profile) return { expenseRatio: null, turnover: null }; // Use null for missing data
+
+        const expenseRatio = profile.annualReportExpenseRatio?.raw ?? null;
+        const turnover = profile.annualHoldingsTurnover?.raw ?? null;
+        return { expenseRatio, turnover };
+    }
+
+    function validateAndFlagTickerData(allData) {
+        const flaggedTickers = new Set();
+        for (const ticker in allData) {
+            const prices = allData[ticker].prices;
+            const sortedDates = Object.keys(prices).sort();
+            for (let i = 1; i < sortedDates.length; i++) {
+                const prevPrice = prices[sortedDates[i-1]];
+                const currentPrice = prices[sortedDates[i]];
+                if(prevPrice > 0 && (currentPrice / prevPrice - 1) < -0.5) { // More than 50% drop
+                    flaggedTickers.add(ticker);
+                    break;
+                }
+            }
+        }
+        return Array.from(flaggedTickers);
+    }
+
+    // --- Core Backtest Calculation Engine ---
+    const bondTickers = new Set(['BND', 'AGG', 'TLT', 'BNDX', 'LQD', 'TIP', 'VGLT', 'VGIT', 'VGSH', 'BIV', 'BSV']);
+    function getAssetClass(symbol) {
+        return bondTickers.has(symbol) ? 'bonds' : 'stocks';
+    }
+
+    function calculatePortfolioPerformance(portfolio, allData, config, benchmarkData = null) {
+        const { initialInvestment, startDate, endDate, contributionAmount, contributionFrequency, rebalanceFrequency, reinvestDividends, riskFreeRate, dividendTaxRate } = config;
+        const tradingDays = Object.keys(allData[Object.keys(allData)[0]].prices).sort().filter(d => d >= startDate && d <= endDate);
+        if (tradingDays.length === 0) return null; // Return null if no data
+        
+        const holdings = {};
+        for (const { symbol, allocation } of portfolio.tickers) {
+            const startingPrice = allData[symbol].prices[tradingDays[0]];
+            if (!startingPrice || startingPrice <= 0) throw new Error(`Could not get a valid starting price for ${symbol} on date ${tradingDays[0]}.`);
+            const valueStart = initialInvestment * (allocation / 100);
+            holdings[symbol] = { shares: valueStart / startingPrice, preTaxShares: valueStart / startingPrice, data: allData[symbol], valueStart: valueStart };
+        }
+        holdings.CASH = { shares: 0, preTaxShares: 0 };
+
+        let postTaxValue = initialInvestment, preTaxValue = initialInvestment;
+        let totalContributions = initialInvestment, cumulativeDividends = 0;
+        let postTaxHprFactors = [], preTaxHprFactors = [];
+        let postTaxValueAtStartOfPeriod = initialInvestment, preTaxValueAtStartOfPeriod = initialInvestment;
+        
+        let dailyValues = [{ date: tradingDays[0], value: postTaxValue, dividends: 0 }];
+        let nextContributionDate = new Date(new Date(tradingDays[0]).getTime() + 86400000);
+        let nextRebalanceDate = new Date(new Date(tradingDays[0]).getTime() + 86400000);
+
+        let peakValue = postTaxValue, peakValueDate = tradingDays[0], maxDrawdown = 0, bestYear = -Infinity, worstYear = Infinity;
+        let drawdownStartDate = null, currentRecoveryDays = 0, longestRecovery = 0;
+
+        for (let i = 1; i < tradingDays.length; i++) {
+            const day = tradingDays[i]; const prevDay = tradingDays[i-1]; const currentDate = new Date(day + 'T00:00:00Z');
+
+            let dailyDividends = 0;
+            postTaxValue = holdings.CASH.shares;
+            preTaxValue = holdings.CASH.preTaxShares;
+            
+            for (const symbol in holdings) {
+                if(symbol === 'CASH') continue;
+                const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
+                if (!price || price <= 0) continue; // Skip if price is invalid
+                if (holdings[symbol].data.dividends[day]) {
+                    const grossDivAmount = holdings[symbol].shares * holdings[symbol].data.dividends[day];
+                    dailyDividends += grossDivAmount;
+                    cumulativeDividends += grossDivAmount;
+                    const netDivAmount = grossDivAmount * (1 - dividendTaxRate);
+                    if (reinvestDividends) {
+                        holdings[symbol].shares += netDivAmount / price;
+                        holdings[symbol].preTaxShares += grossDivAmount / price;
+                    } else {
+                        holdings.CASH.shares += netDivAmount;
+                        holdings.CASH.preTaxShares += grossDivAmount;
+                    }
+                }
+                postTaxValue += holdings[symbol].shares * price;
+                preTaxValue += holdings[symbol].preTaxShares * price;
+            }
+
+            if (contributionFrequency !== 'none' && currentDate >= nextContributionDate) {
+                if(contributionAmount > 0) {
+                    postTaxHprFactors.push(postTaxValue / postTaxValueAtStartOfPeriod);
+                    preTaxHprFactors.push(preTaxValue / preTaxValueAtStartOfPeriod);
+                    postTaxValue += contributionAmount;
+                    preTaxValue += contributionAmount;
+                    totalContributions += contributionAmount;
+                    postTaxValueAtStartOfPeriod = postTaxValue;
+                    preTaxValueAtStartOfPeriod = preTaxValue;
+                    for (const { symbol, allocation } of portfolio.tickers) {
+                        const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
+                        if (!price || price <= 0) continue;
+                        const sharesToAdd = (contributionAmount * (allocation / 100)) / price;
+                        holdings[symbol].shares += sharesToAdd;
+                        holdings[symbol].preTaxShares += sharesToAdd;
+                    }
+                }
+                if (contributionFrequency === 'weekly') nextContributionDate.setUTCDate(nextContributionDate.getUTCDate() + 7);
+                else if (contributionFrequency === 'monthly') nextContributionDate.setUTCMonth(nextContributionDate.getUTCMonth() + 1);
+                else if (contributionFrequency === 'quarterly') nextContributionDate.setUTCMonth(nextContributionDate.getUTCMonth() + 3);
+                else if (contributionFrequency === 'annually') nextContributionDate.setUTCFullYear(nextContributionDate.getUTCFullYear() + 1);
+            }
+
+            if (rebalanceFrequency !== 'never' && currentDate >= nextRebalanceDate) {
+                // NOTE: Capital Gains tax on rebalancing is not implemented.
+                for (const { symbol, allocation } of portfolio.tickers) {
+                    const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
+                    if (!price || price <= 0) continue;
+                    holdings[symbol].shares = (postTaxValue * (allocation / 100)) / price;
+                    holdings[symbol].preTaxShares = (preTaxValue * (allocation / 100)) / price;
+                }
+                if (rebalanceFrequency === 'quarterly') nextRebalanceDate.setUTCMonth(nextRebalanceDate.getUTCMonth() + 3);
+                else if (rebalanceFrequency === 'annually') nextRebalanceDate.setUTCFullYear(nextRebalanceDate.getUTCFullYear() + 1);
+            }
+            
+            dailyValues.push({date: day, value: postTaxValue, dividends: dailyDividends});
+            
+            const drawdown = (postTaxValue - peakValue) / peakValue;
+            if (drawdown < maxDrawdown) { maxDrawdown = drawdown; if(!drawdownStartDate) drawdownStartDate = peakValueDate; }
+            if (postTaxValue > peakValue) {
+                if (drawdownStartDate) { currentRecoveryDays = (new Date(day) - new Date(drawdownStartDate)) / (1000 * 3600 * 24); if (currentRecoveryDays > longestRecovery) { longestRecovery = currentRecoveryDays; } drawdownStartDate = null; }
+                peakValue = postTaxValue; peakValueDate = day;
+            }
+
+            if (i >= 252) { const yearReturn = (postTaxValue / dailyValues[i-252].value) - 1; if (yearReturn > bestYear) bestYear = yearReturn; if (yearReturn < worstYear) worstYear = yearReturn; }
+        }
+        
+        postTaxHprFactors.push(postTaxValue / postTaxValueAtStartOfPeriod);
+        preTaxHprFactors.push(preTaxValue / preTaxValueAtStartOfPeriod);
+
+        const annualize = (hprFactors) => {
+            if (hprFactors.length === 0) return 0;
+            const geoMean = hprFactors.reduce((acc, val) => acc * val, 1);
+            const twrr = Math.pow(geoMean, 1 / hprFactors.length) -1;
+            return Math.pow(1 + twrr, 252 / (tradingDays.length / hprFactors.length)) - 1;
+        };
+
+        const postTaxAnnualReturn = annualize(postTaxHprFactors);
+        const preTaxAnnualReturn = annualize(preTaxHprFactors);
+        const taxDrag = (dividendTaxRate > 0) ? (preTaxAnnualReturn - postTaxAnnualReturn) : 0;
+
+        const dailyReturns = dailyValues.map((v, i) => i === 0 ? 0 : (v.value / dailyValues[i-1].value) - 1).slice(1);
+        const meanReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
+        const stdDev = Math.sqrt(dailyReturns.map(r => Math.pow(r - meanReturn, 2)).reduce((a, b) => a + b, 0) / dailyReturns.length);
+        const volatility = stdDev * Math.sqrt(252);
+        
+        const dailyRfr = Math.pow(1 + riskFreeRate, 1/252) - 1;
+        const downsideReturns = dailyReturns.filter(r => r < dailyRfr);
+        const downsideVariance = downsideReturns.map(r => Math.pow(r - dailyRfr, 2)).reduce((a, b) => a + b, 0) / (dailyReturns.length || 1);
+        const downsideStdDev = Math.sqrt(downsideVariance);
+        const annualizedDownsideVol = downsideStdDev * Math.sqrt(252);
+        const sortinoRatio = (postTaxAnnualReturn - riskFreeRate) / annualizedDownsideVol;
+        
+        let beta = null, alpha = null;
+        if (benchmarkData && benchmarkData.dailyReturns.length === dailyReturns.length) {
+             if (portfolio.name === benchmarkData.portfolio.name) { beta = 1.0; alpha = 0.0; }
+             else {
+                const benchmarkReturns = benchmarkData.dailyReturns;
+                const cov = dailyReturns.reduce((sum, r_p, i) => sum + (r_p - meanReturn) * (benchmarkReturns[i] - benchmarkData.meanReturn), 0) / dailyReturns.length;
+                const benchmarkDailyVariance = benchmarkData.variance / 252;
+                beta = cov / benchmarkDailyVariance;
+                alpha = postTaxAnnualReturn - (riskFreeRate + beta * (benchmarkData.annualReturn - riskFreeRate));
+            }
+        }
+        
+        const breakdown = portfolio.tickers.map(({ symbol, allocation }) => {
+            const holding = holdings[symbol]; const priceEnd = allData[symbol].prices[tradingDays[tradingDays.length - 1]]; const valueEnd = holding.shares * priceEnd;
+            return { symbol, allocation, shares: holding.shares, valueStart: holding.valueStart, valueEnd, drift: (valueEnd / postTaxValue) * 100 - allocation, inceptionDate: allData[symbol].inceptionDate };
+        });
+
+        const cashValue = holdings.CASH.shares;
+        let stockValue = 0, bondValue = 0;
+        breakdown.forEach(h => getAssetClass(h.symbol) === 'stocks' ? stockValue += h.valueEnd : bondValue += h.valueEnd);
+        const totalValue = stockValue + bondValue + cashValue;
+        const stockPercent = totalValue > 0 ? stockValue / totalValue : 0;
+        const bondPercent = totalValue > 0 ? bondValue / totalValue : 0;
+        const cashPercent = totalValue > 0 ? cashValue / totalValue : 0;
+
+        const annualDividends = {};
+        dailyValues.forEach(dv => { const year = new Date(dv.date).getUTCFullYear(); annualDividends[year] = (annualDividends[year] || 0) + dv.dividends; });
+        const years = Object.keys(annualDividends).map(Number).sort();
+        let incomeGrowth = null;
+        if (years.length >= 2) {
+            const startDiv = annualDividends[years[0]]; const endDiv = annualDividends[years[years.length - 1]];
+            if (startDiv > 0 && endDiv > 0) { incomeGrowth = Math.pow(endDiv / startDiv, 1 / (years.length - 1)) - 1; }
+        }
+
+        let winningMonths = 0, losingMonths = 0, currentWinStreak = 0, maxWinStreak = 0, currentLoseStreak = 0, maxLoseStreak = 0;
+        let lastMonth = new Date(dailyValues[0].date).getUTCMonth(), lastMonthValue = dailyValues[0].value;
+        for(let i=1; i < dailyValues.length; i++) {
+            const d = new Date(dailyValues[i].date); const currentMonth = d.getUTCMonth();
+            if(currentMonth !== lastMonth) {
+                const monthReturn = (dailyValues[i].value / lastMonthValue) - 1;
+                if(monthReturn > 0) { winningMonths++; currentWinStreak++; currentLoseStreak = 0; }
+                else if (monthReturn < 0) { losingMonths++; currentLoseStreak++; currentWinStreak = 0; }
+                maxWinStreak = Math.max(maxWinStreak, currentWinStreak); maxLoseStreak = Math.max(maxLoseStreak, currentLoseStreak);
+                lastMonthValue = dailyValues[i].value;
+                lastMonth = currentMonth;
+            }
+        }
+
+        const last12MoDividends = dailyValues.slice(-252).reduce((acc, v) => acc + v.dividends, 0);
+
+        return {
+            portfolio, dailyValues, breakdown, startingBalance: initialInvestment, contributions: totalContributions - initialInvestment, totalInvested: totalContributions, endingBalance: postTaxValue,
+            totalReturn: postTaxValue - totalContributions, totalReturnPercent: (postTaxValue - totalContributions) / totalContributions, annualReturn: postTaxAnnualReturn, cumulativeDividends, taxDrag,
+            volatility, downsideVol: annualizedDownsideVol, sharpeRatio: (postTaxAnnualReturn - riskFreeRate) / volatility, sortinoRatio: sortinoRatio,
+            maxDrawdown, bestYear, worstYear, beta, alpha, dropNow: (postTaxValue - peakValue) / peakValue, longestRecovery, winningMonths: winningMonths / (winningMonths + losingMonths || 1),
+            winningStreak: maxWinStreak, losingStreak: maxLoseStreak, incomeLast12Mo: last12MoDividends, yieldOnCost: last12MoDividends / totalContributions, dailyReturns, meanReturn, variance: Math.pow(stdDev, 2) * 252,
+            stockPercent, bondPercent, cashPercent, incomeGrowth
+        };
+    }
+
+    // --- Projections Calculation Engine ---
+    function generateRandomReturn(mean, stdDev) { 
+        let u1=0, u2=0; 
+        while(u1===0) u1=Math.random(); 
+        while(u2===0) u2=Math.random(); 
+        const z0 = Math.sqrt(-2.0*Math.log(u1))*Math.cos(2.0*Math.PI*u2); 
+        return z0 * stdDev + mean; 
+    }
+
+    function calculateMonteCarloProjection(portfolioResult, params) {
+        const { simulations, accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, inflationRate, goal, startValue } = params;
+
+        const hist_cagr = portfolioResult.annualReturn;
+        const hist_volatility = portfolioResult.volatility;
+        const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0;
+        const total_arithmetic_mean = hist_cagr + (Math.pow(hist_volatility, 2) / 2);
+        const drift = total_arithmetic_mean - (Math.pow(hist_volatility, 2) / 2);
+
+        const yearPaths = [];
+        let failures = 0;
+
+        for (let i = 0; i < simulations; i++) {
+            let value = startValue;
+            const path = [];
+            
+            let annualContribution = initialContribution;
+            for (let y = 0; y < accumulationYears; y++) {
+                const startOfYearValue = value;
+                value += annualContribution;
+                value *= Math.exp(generateRandomReturn(drift, hist_volatility));
+                if (!isFinite(value) || value < 0) { value = 0; break; }
+                
+                path.push({ year: y + 1, startBalance: startOfYearValue, contributions: annualContribution, dividends: startOfYearValue * hist_dividend_yield, withdrawals: 0, salesNeeded: 0, endBalance: value });
+                annualContribution *= (1 + contributionIncrease);
+            }
+
+            if (goal === 'retire') {
+                for (let y = 0; y < decumulationYears; y++) {
+                    if (value <= 0) {
+                         path.push({ year: accumulationYears + y + 1, startBalance: 0, contributions: 0, dividends: 0, withdrawals: 0, salesNeeded: 0, endBalance: 0 });
+                         continue;
+                    }
+                    
+                    const startOfYearValue = value;
+                    const dividendsGenerated = startOfYearValue * hist_dividend_yield;
+                    let currentWithdrawal = 0;
+                    
+                    if (withdrawalStrategy === 'dividends') { currentWithdrawal = dividendsGenerated; } 
+                    else if (withdrawalStrategy === 'percentage') { currentWithdrawal = startOfYearValue * withdrawalRate; } 
+                    else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; }
+
+                    value -= currentWithdrawal;
+                    if (value > 0) { value *= Math.exp(generateRandomReturn(drift, hist_volatility)); }
+                    if (!isFinite(value) || value < 0) { value = 0; }
+                    
+                    path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, contributions: 0, dividends: dividendsGenerated, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - dividendsGenerated), endBalance: value });
+                }
+            }
+            
+            if (goal === 'retire' && path.length > 0 && path[path.length - 1].endBalance <= 0) { failures++; }
+            yearPaths.push(path);
+        }
+        
+        const getPercentilePath = (percentile) => {
+            const sortedPaths = yearPaths.sort((a,b) => {
+                const aEnd = a.length > 0 ? a[a.length-1].endBalance : 0;
+                const bEnd = b.length > 0 ? b[b.length-1].endBalance : 0;
+                return aEnd - bEnd;
+            });
+            return sortedPaths[Math.floor(simulations * percentile)] || [];
+        };
+        
+        const calculatePathMetrics = (path) => {
+            if (!path || path.length === 0) return { path: [], maxDrawdown: 0, endingBalance: 0, balanceAtRetirement: 0, dividendsAtRetirement: 0, dividendYieldAtRetirement: 0 };
+            let peak = path.length > 0 ? path[0].startBalance : 0;
+            let maxDd = 0;
+            path.forEach(year => {
+                peak = Math.max(peak, year.endBalance);
+                const drawdown = peak > 0 ? (year.endBalance - peak) / peak : 0;
+                maxDd = Math.min(maxDd, drawdown);
+            });
+            
+            const balanceAtRetirement = path[accumulationYears - 1]?.endBalance || (accumulationYears === 0 ? startValue : (path.length > 0 ? path[path.length - 1].endBalance : 0));
+            const dividendsAtRetirement = (path[accumulationYears]?.startBalance || 0) * hist_dividend_yield;
+            
+            return {
+                path, maxDrawdown: maxDd, endingBalance: path[path.length - 1].endBalance,
+                balanceAtRetirement: balanceAtRetirement,
+                dividendsAtRetirement: dividendsAtRetirement,
+                dividendYieldAtRetirement: hist_dividend_yield
+            };
+        };
+
+        return {
+            good: calculatePathMetrics(getPercentilePath(0.9)),
+            median: calculatePathMetrics(getPercentilePath(0.5)),
+            poor: calculatePathMetrics(getPercentilePath(0.1)),
+            successRate: 1 - (failures / simulations)
+        };
+    }
+
+
+    // --- UI Rendering ---
+    function formatNumber(num, type, decimals = 1) {
+        if (num === null || typeof num === 'undefined' || isNaN(num) || !isFinite(num)) return 'N/A';
+        if (type === 'currency') return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        if (type === 'percent') return (num * 100).toFixed(decimals) + ' %';
+        if (type === 'decimal') return num.toFixed(2);
+        if (type === 'days') return num.toFixed(0) + ' d';
+        if (type === 'months') return num.toFixed(0) + ' mo';
+        return num.toLocaleString();
+    }
+
+    function updateCostMetricsInTable(results, allProfiles) {
+        results.forEach(r => {
+            if (!r.breakdown) return;
+            const totalValue = r.endingBalance;
+            let totalExpense = 0;
+            let totalTurnover = 0;
+            let costsAreKnown = true;
+
+            for(const h of r.breakdown) {
+                const profile = allProfiles[`${h.symbol}_profile`];
+                if (profile?.expenseRatio === null || profile?.turnover === null) {
+                    costsAreKnown = false;
+                    break;
+                }
+                totalExpense += (h.valueEnd / totalValue) * (profile?.expenseRatio || 0);
+                totalTurnover += (h.valueEnd / totalValue) * (profile?.turnover || 0);
+            }
+            
+            const erCell = document.getElementById(`er-${r.portfolio.id}`);
+            const toCell = document.getElementById(`to-${r.portfolio.id}`);
+
+            if (erCell) erCell.textContent = costsAreKnown ? formatNumber(totalExpense, 'percent', 2) : 'N/A';
+            if (toCell) toCell.textContent = costsAreKnown ? formatNumber(totalTurnover, 'percent', 0) : 'N/A';
+        });
+    }
+    
+    function renderBacktestChart(results) {
+        if (!window.Chart) { console.error("Chart.js is not loaded."); return; }
+        const ctx = document.getElementById('backtest-chart').getContext('2d');
+        if (backtestChartInstance) { backtestChartInstance.destroy(); }
+        
+        const colors = ['#007aff', '#34c759', '#ff9500', '#af52de', '#ff3b30', '#5856d6'];
+        const datasets = results.map((p, i) => ({
+            label: p.portfolio.name,
+            data: p.dailyValues.map(d => ({ x: new Date(d.date).valueOf(), y: d.value })),
+            borderColor: colors[i % colors.length],
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.1
+        }));
+        
+        backtestChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { datasets: datasets },
+            options: {
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); },
+                            label: function(context) {
+                                const label = context.dataset.label || '';
+                                const value = formatNumber(context.parsed.y, 'currency');
+                                return `${label}: ${value}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, title: { display: true, text: 'Date' } },
+                    y: { type: 'logarithmic', title: { display: true, text: 'Portfolio Value ($)' }, ticks: { callback: function(value, index, values) {
+                        if (value === 10000 || value === 50000 || value === 100000 || value === 500000 || value === 1000000 || value === 5000000 || value === 10000000) {
+                             return formatNumber(value, 'currency');
+                        }
+                    }}}
+                }
+            }
+        });
+        performanceChartCard.classList.remove('hidden');
+    }
+
+    function renderResults(results) {
+        const portfolioNames = results.map(r => r.portfolio.name);
+        
+        function createTable(containerId, metrics) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; 
+
+            const table = document.createElement('table');
+            const thead = table.createTHead();
+            const tbody = table.createTBody();
+            const headerRow = thead.insertRow();
+
+            const thMetric = document.createElement('th');
+            thMetric.textContent = 'Metric';
+            headerRow.appendChild(thMetric);
+
+            portfolioNames.forEach(name => {
+                const th = document.createElement('th');
+                th.textContent = name;
+                headerRow.appendChild(th);
+            });
+
+            metrics.forEach(metric => {
+                const tr = tbody.insertRow();
+                const tdMetric = tr.insertCell();
+                
+                tdMetric.textContent = metric.label + ' ';
+                const helpIcon = document.createElement('span');
+                helpIcon.className = 'help-icon';
+                helpIcon.dataset.tooltip = metric.help;
+                helpIcon.textContent = '?';
+                tdMetric.appendChild(helpIcon);
+
+                results.forEach(r => {
+                    const td = tr.insertCell();
+                    if(metric.id) td.id = `${metric.id}-${r.portfolio.id}`;
+                    td.innerHTML = metric.formatter(r); // Use innerHTML only for the mini-loader pattern
+                    const cssClass = metric.class ? metric.class(r) : '';
+                    if (cssClass) td.className = cssClass;
+                });
+            });
+            container.appendChild(table);
+        }
+
+        createTable('snapshot-table-container', [
+            { label: 'Starting Balance', help: 'How much the portfolio was worth on the very first day of the back-test.', formatter: r => formatNumber(r.startingBalance, 'currency') },
+            { label: 'Contributions', help: 'Every extra dollar you deposited after day 1.', formatter: r => formatNumber(r.contributions, 'currency') },
+            { label: 'Total Invested', help: 'Starting Balance + Contributions – the full amount you put in.', formatter: r => formatNumber(r.totalInvested, 'currency') },
+            { label: 'Ending Balance', help: 'What the portfolio is worth on the last day of the test.', formatter: r => formatNumber(r.endingBalance, 'currency') },
+            { label: 'Total Return', help: 'Profit or loss since you started, shown in dollars and percent of Total Invested.', formatter: r => `${formatNumber(r.totalReturn, 'currency')} (${formatNumber(r.totalReturnPercent, 'percent')})`, class: r => r.totalReturn >= 0 ? 'positive' : 'negative' },
+            { label: 'Annual Return', help: 'The average yearly growth rate for this test period (also called CAGR).', formatter: r => formatNumber(r.annualReturn, 'percent'), class: r => r.annualReturn >= 0 ? 'positive' : 'negative' },
+        ]);
+        createTable('allocation-table-container', [ 
+            { label: 'Stocks', help: 'Portion of the portfolio invested in stock funds or individual shares.', formatter: r => formatNumber(r.stockPercent, 'percent') }, 
+            { label: 'Bonds', help: 'Portion invested in bond or fixed-income funds.', formatter: r => formatNumber(r.bondPercent, 'percent') }, 
+            { label: 'Cash', help: 'Cash or cash-like positions (including money-market funds).', formatter: r => formatNumber(r.cashPercent, 'percent') },
+        ]);
+        createTable('income-table-container', [
+             { label: 'Total Dividends', help: 'Every dividend dollar the portfolio paid you since day 1.', formatter: r => formatNumber(r.cumulativeDividends, 'currency')},
+             { label: 'Income Last 12 Mo', help: 'Dividends received in the most recent 12-month stretch.', formatter: r => formatNumber(r.incomeLast12Mo, 'currency') },
+             { label: 'Yield on Cost', help: 'Income Last 12 Mo divided by Total Invested (your personal dividend rate).', formatter: r => formatNumber(r.yieldOnCost, 'percent') },
+             { label: 'Income Growth', help: 'Average yearly growth rate of your dividend income since the start.', formatter: r => formatNumber(r.incomeGrowth, 'percent'), class: r => r.incomeGrowth >= 0 ? 'positive' : 'negative' },
+        ]);
+        createTable('costs-table-container', [ 
+            { id: 'er', label: 'Expense Ratio', help: 'The weighted average yearly fee built into your funds.', formatter: () => `<div class="mini-loader"></div>` }, 
+            { id: 'to', label: 'Turnover', help: 'Roughly what percent of the portfolio is bought or sold each year; higher can mean more hidden costs.', formatter: () => `<div class="mini-loader"></div>` }, 
+            { label: 'Tax Drag (Dividends)', help: 'Annualized return lost to taxes on dividends. Does not include capital gains from rebalancing.', formatter: r => formatNumber(r.taxDrag, 'percent', 2), class: r => (r.taxDrag > 0 ? 'negative' : '') }, 
+        ]);
+        createTable('risk-table-container', [
+            { label: 'Volatility', help: 'Typical size of month-to-month ups and downs; bigger means a bumpier ride.', formatter: r => formatNumber(r.volatility, 'percent') },
+            { label: 'Downside Volatility', help: 'Same idea, but it only counts the down months (relative to the risk-free rate).', formatter: r => formatNumber(r.downsideVol, 'percent') },
+            { label: 'Sharpe Ratio', help: 'Extra return earned for each unit of overall volatility (higher is better).', formatter: r => formatNumber(r.sharpeRatio, 'decimal') },
+            { label: 'Sortino Ratio', help: 'Extra return earned for each unit of downside volatility.', formatter: r => formatNumber(r.sortinoRatio, 'decimal') },
+            { label: `Beta (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's volatility relative to the benchmark (${primaryBenchmarkTicker}). A Beta of 1.1 means it's 10% more volatile than the benchmark.`, formatter: r => r.beta !== null ? formatNumber(r.beta, 'decimal') : (r.portfolio.name === primaryBenchmarkTicker ? '1.00' : 'N/A') },
+            { label: `Alpha (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's ability to outperform the market. A positive Alpha means it performed better than its benchmark, considering the risk it took.`, formatter: r => r.alpha !== null ? formatNumber(r.alpha, 'percent') : (r.portfolio.name === primaryBenchmarkTicker ? formatNumber(0, 'percent') : 'N/A'), class: r => r.alpha !== null ? (r.alpha >= 0 ? 'positive' : 'negative') : '' },
+            { label: 'Best Year', help: 'The highest return achieved in any 12-month period during the test.', formatter: r => formatNumber(r.bestYear, 'percent'), class: () => 'positive' },
+            { label: 'Worst Year', help: 'The lowest return achieved in any 12-month period during the test.', formatter: r => formatNumber(r.worstYear, 'percent'), class: () => 'negative' },
+        ]);
+        createTable('drawdown-table-container', [ { label: 'Worst Drop', help: 'The worst percentage fall from a high point to a low point during the test.', formatter: r => formatNumber(r.maxDrawdown, 'percent'), class: () => 'negative' }, { label: 'Drop Now', help: 'How far below its most recent high the portfolio is today.', formatter: r => formatNumber(r.dropNow, 'percent'), class: () => 'negative' }, { label: 'Longest Recovery', help: 'Most days it took to climb from a low back to a new high.', formatter: r => formatNumber(r.longestRecovery, 'days') }, ]);
+        createTable('consistency-table-container', [ { label: 'Winning Months', help: 'Percent of months that finished higher than they started.', formatter: r => formatNumber(r.winningMonths, 'percent') }, { label: 'Winning Streak', help: 'Longest run of consecutive winning months.', formatter: r => formatNumber(r.winningStreak, 'months') }, { label: 'Losing Streak', help: 'Longest run of consecutive losing months.', formatter: r => formatNumber(r.losingStreak, 'months') }, ]);
+        
+        const holdingsTablesContainer = document.getElementById('holdings-tables-container');
+        holdingsTablesContainer.innerHTML = '';
+
+        results.filter(r => r.breakdown).forEach(r => {
+            const portfolioHeader = document.createElement('h3');
+            portfolioHeader.textContent = r.portfolio.name;
+            portfolioHeader.style.marginTop = '20px';
+            holdingsTablesContainer.appendChild(portfolioHeader);
+
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+            
+            const table = document.createElement('table');
+            const thead = table.createTHead();
+            const tbody = table.createTBody();
+            const headerRow = thead.insertRow();
+            ['Ticker', 'Inception', 'Target %', 'Shares', 'Start $', 'End $', 'Drift %'].forEach((text, i) => {
+                const th = document.createElement('th');
+                th.textContent = text;
+                if (i === 0) th.style.textAlign = 'left';
+                headerRow.appendChild(th);
+            });
+
+            r.breakdown.forEach(t => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = t.symbol;
+                row.insertCell().textContent = t.inceptionDate;
+                row.insertCell().textContent = formatNumber(t.allocation / 100, 'percent', 1);
+                row.insertCell().textContent = t.shares.toFixed(2);
+                row.insertCell().textContent = formatNumber(t.valueStart, 'currency');
+                row.insertCell().textContent = formatNumber(t.valueEnd, 'currency');
+                const driftCell = row.insertCell();
+                driftCell.textContent = `${t.drift.toFixed(1)} %`;
+                driftCell.className = t.drift >= 0 ? 'positive' : 'negative';
+            });
+            tableContainer.appendChild(table);
+            holdingsTablesContainer.appendChild(tableContainer);
+        });
+
+        resultsArea.classList.remove('hidden');
+        resultsArea.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function renderProjectionResults(projectionResults, params) {
+        projectionsResultsArea.innerHTML = ''; // Clear old results
+
+        const createTable = (title, metrics, results) => {
+            const h3 = document.createElement('h3');
+            h3.textContent = title;
+            projectionsResultsArea.appendChild(h3);
+
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+            const table = document.createElement('table');
+            const thead = table.createTHead();
+            const tbody = table.createTBody();
+            const headerRow = thead.insertRow();
+            
+            tableContainer.appendChild(table);
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            projectionsResultsArea.appendChild(tableContainer);
+
+            const thMetric = document.createElement('th');
+            thMetric.textContent = 'Scenario';
+            headerRow.appendChild(thMetric);
+            results.forEach(r => {
+                const th = document.createElement('th');
+                th.textContent = r.name;
+                headerRow.appendChild(th);
+            });
+
+            metrics.forEach(metric => {
+                const row = tbody.insertRow();
+                const labelCell = row.insertCell();
+                labelCell.textContent = metric.label;
+                
+                results.forEach(r => {
+                    const cell = row.insertCell();
+                    cell.textContent = metric.formatter(r);
+                });
+            });
+        };
+
+        createTable('Portfolio Overview — All Scenarios', [
+            { label: 'Best (90th)', formatter: r => formatNumber(r.monteCarlo.good.endingBalance, 'currency') },
+            { label: 'Middle (50th)', formatter: r => formatNumber(r.monteCarlo.median.endingBalance, 'currency') },
+            { label: 'Worst (10th)', formatter: r => formatNumber(r.monteCarlo.poor.endingBalance, 'currency') }
+        ], projectionResults);
+
+        if (params.goal === 'retire') {
+             createTable('Annual Dividends at Retirement Start', [
+                { label: 'Best (90th)', formatter: r => formatNumber(r.monteCarlo.good.dividendsAtRetirement, 'currency') },
+                { label: 'Middle (50th)', formatter: r => formatNumber(r.monteCarlo.median.dividendsAtRetirement, 'currency') },
+                { label: 'Worst (10th)', formatter: r => formatNumber(r.monteCarlo.poor.dividendsAtRetirement, 'currency') }
+            ], projectionResults);
+
+            const withdrawalAmount = params.withdrawalStrategy === 'fixed_amount' ? params.withdrawalAmount : 0;
+            if(withdrawalAmount > 0) {
+                 createTable(`Dividend Coverage of Target Withdrawal (${formatNumber(withdrawalAmount, 'currency')}/yr)`, [
+                    { label: 'Best (90th)', formatter: r => formatNumber(r.monteCarlo.good.dividendsAtRetirement / withdrawalAmount, 'percent', 0) },
+                    { label: 'Middle (50th)', formatter: r => formatNumber(r.monteCarlo.median.dividendsAtRetirement / withdrawalAmount, 'percent', 0) },
+                    { label: 'Worst (10th)', formatter: r => formatNumber(r.monteCarlo.poor.dividendsAtRetirement / withdrawalAmount, 'percent', 0) }
+                ], projectionResults);
+            }
+        }
+        
+        const detailsContainer = document.createElement('div');
+        detailsContainer.id = 'projection-details-container';
+        projectionsResultsArea.appendChild(detailsContainer);
+        
+        const detailsHeader = document.createElement('h3');
+        detailsHeader.textContent = 'Projection Details';
+        detailsContainer.appendChild(detailsHeader);
+        
+        const navContainer = document.createElement('div');
+        navContainer.className = 'projection-detail-nav';
+
+        const selectLabel = document.createElement('label');
+        selectLabel.htmlFor = 'portfolio-selector';
+        selectLabel.id = 'portfolio-selector-label';
+        selectLabel.textContent = 'Portfolio:';
+
+        const selectWrapper = document.createElement('div');
+        selectWrapper.className = 'select-wrapper';
+        
+        const portfolioSelect = document.createElement('select');
+        portfolioSelect.id = 'portfolio-selector';
+        
+        selectWrapper.appendChild(portfolioSelect);
+        navContainer.appendChild(selectLabel);
+        navContainer.appendChild(selectWrapper);
+        detailsContainer.appendChild(navContainer);
+        
+        const contentContainer = document.createElement('div');
+        detailsContainer.appendChild(contentContainer);
+
+        projectionResults.forEach((r, index) => {
+            const option = document.createElement('option');
+            option.value = r.name;
+            option.textContent = r.name;
+            portfolioSelect.appendChild(option);
+            
+            const detailView = createDetailView(r, params);
+            detailView.id = `detail-${r.name.replace(/\s+/g, '-')}`;
+            if (index > 0) detailView.classList.add('hidden');
+            contentContainer.appendChild(detailView);
+        });
+
+        portfolioSelect.addEventListener('change', e => {
+            contentContainer.querySelectorAll('.detail-view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(`detail-${e.target.value.replace(/\s+/g, '-')}`).classList.remove('hidden');
+        });
+    }
+
+    function createDetailView(result, params) {
+        const container = document.createElement('div');
+        container.className = 'detail-view';
+
+        const scenarioTabs = document.createElement('div');
+        scenarioTabs.className = 'scenario-tabs';
+        container.appendChild(scenarioTabs);
+
+        const scenarios = ['Best (90th)', 'Middle (50th)', 'Worst (10th)'];
+        const scenarioKeys = ['good', 'median', 'poor'];
+
+        scenarios.forEach((s, i) => {
+            const tab = document.createElement('button');
+            tab.className = `scenario-tab ${i === 1 ? 'active' : ''}`;
+            tab.dataset.scenarioKey = scenarioKeys[i];
+            tab.textContent = s;
+            scenarioTabs.appendChild(tab);
+        });
+        
+        const scenarioContent = document.createElement('div');
+        container.appendChild(scenarioContent);
+
+        const createScenarioContent = (key) => {
+            const data = result.monteCarlo[key];
+            const content = document.createElement('div');
+            
+            const hasPathData = data.path && data.path.length > 0;
+            const finalYearData = hasPathData ? data.path[data.path.length - 1] : { withdrawals: 0, dividends: 0 };
+
+            const createSectionTable = (title, metrics) => {
+                const h3 = document.createElement('h3');
+                h3.textContent = title;
+                content.appendChild(h3);
+                
+                const table = document.createElement('table');
+                const tbody = table.createTBody();
+                metrics.forEach(m => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = m.label;
+                    row.insertCell().textContent = m.value;
+                });
+                content.appendChild(table);
+            };
+
+            createSectionTable('Snapshot', [
+                { label: 'Balance @ Retirement Start', value: formatNumber(data.balanceAtRetirement, 'currency') },
+                { label: 'Ending Balance (Horizon)', value: formatNumber(data.endingBalance, 'currency') },
+                { label: 'Phase 1 Contributions', value: formatNumber(params.initialContribution * params.accumulationYears, 'currency') },
+                { label: 'Phase 2 Withdrawals', value: formatNumber(hasPathData ? data.path.slice(params.accumulationYears).reduce((sum, yr) => sum + yr.withdrawals, 0) : 0, 'currency') }
+            ]);
+            
+            if (params.goal === 'retire') {
+                const withdrawalAmount = params.withdrawalStrategy === 'fixed_amount' ? params.withdrawalAmount : 0;
+                createSectionTable('Income', [
+                    { label: 'Dividend Yield @ Retirement', value: formatNumber(data.dividendYieldAtRetirement, 'percent') },
+                    { label: 'Dividends @ Start (yr 1 retired)', value: `${formatNumber(data.dividendsAtRetirement, 'currency')}/yr` },
+                    ...(withdrawalAmount > 0 ? [{ label: `% of ${formatNumber(withdrawalAmount, 'currency')} Covered (Start)`, value: formatNumber(data.dividendsAtRetirement / withdrawalAmount, 'percent', 0) }] : []),
+                    { label: 'Dividends @ Horizon', value: `${formatNumber(finalYearData.dividends, 'currency')}/yr` }
+                ]);
+            }
+
+            const yearTableContainer = document.createElement('div');
+            yearTableContainer.className = 'table-container';
+            const yearTable = document.createElement('table');
+            yearTable.id = `year-table-${result.name}-${key}`;
+            const yThead = yearTable.createTHead();
+            const yTbody = yearTable.createTBody();
+            const yHeadRow = yThead.insertRow();
+            
+            const isRetireGoal = params.goal === 'retire';
+            const headers = isRetireGoal
+                ? ['Year', 'Start', 'Contrib', 'Dividends', 'Withdrawals', 'Sales Needed', 'End']
+                : ['Year', 'Start', 'Contrib', 'Dividends', 'End'];
+            
+            headers.forEach(h => {
+                const th = document.createElement('th');
+                th.textContent = h;
+                yHeadRow.appendChild(th);
+            });
+            
+            if (hasPathData) {
+                data.path.forEach((yearData, index) => {
+                    const row = yTbody.insertRow();
+                    row.insertCell().textContent = yearData.year;
+                    row.insertCell().textContent = formatNumber(yearData.startBalance, 'currency');
+                    row.insertCell().textContent = formatNumber(yearData.contributions, 'currency');
+                    row.insertCell().textContent = formatNumber(yearData.dividends, 'currency');
+                    if (isRetireGoal) {
+                        row.insertCell().textContent = formatNumber(yearData.withdrawals, 'currency');
+                        row.insertCell().textContent = formatNumber(yearData.salesNeeded, 'currency');
+                    }
+                    row.insertCell().textContent = formatNumber(yearData.endBalance, 'currency');
+                    if(index > 4) row.classList.add('hidden', 'extra-year-row');
+                });
+            }
+            
+            yearTableContainer.appendChild(yearTable);
+            content.appendChild(yearTableContainer);
+
+            if(hasPathData && data.path.length > 5) {
+                const buttonWrapper = document.createElement('div');
+                buttonWrapper.style.textAlign = 'center';
+                const showMoreBtn = document.createElement('button');
+                showMoreBtn.className = 'toggle-year-btn add-btn';
+                showMoreBtn.textContent = `Show all ${data.path.length} years`;
+                buttonWrapper.appendChild(showMoreBtn);
+                const exportBtn = document.createElement('button');
+                exportBtn.className = 'toggle-year-btn';
+                exportBtn.textContent = `Export CSV`;
+                exportBtn.style.marginLeft = '10px';
+                buttonWrapper.appendChild(exportBtn);
+                content.appendChild(buttonWrapper);
+
+                showMoreBtn.addEventListener('click', () => {
+                    const rows = yearTable.querySelectorAll('.extra-year-row');
+                    const isHidden = rows.length > 0 && rows[0].classList.contains('hidden');
+                    rows.forEach(r => r.classList.toggle('hidden', !isHidden));
+                    showMoreBtn.textContent = isHidden ? 'Show fewer years' : `Show all ${data.path.length} years`;
+                });
+            }
+
+            return content;
+        };
+        
+        scenarioContent.appendChild(createScenarioContent('median'));
+
+        scenarioTabs.addEventListener('click', e => {
+            if (e.target.classList.contains('scenario-tab')) {
+                scenarioTabs.querySelectorAll('.scenario-tab').forEach(p => p.classList.remove('active'));
+                e.target.classList.add('active');
+                scenarioContent.innerHTML = '';
+                scenarioContent.appendChild(createScenarioContent(e.target.dataset.scenarioKey));
+            }
+        });
+
+        return container;
+    }
+    
+    function renderProjectionChart(historicalData, projectionData) {
+        if (!window.Chart) { console.error("Chart.js is not loaded."); return; }
+        const ctx = document.getElementById('projection-chart').getContext('2d'); if (projectionChartInstance) { projectionChartInstance.destroy(); }
+        const colors = ['#007aff', '#34c759', '#ff9500', '#af52de', '#ff3b30', '#5856d6'];
+        const datasets = [];
+        historicalData.forEach((p, i) => { datasets.push({ label: `${p.portfolio.name} (Historical)`, data: p.dailyValues.map(d => ({x: new Date(d.date).valueOf(), y: d.value})), borderColor: colors[i % colors.length], borderWidth: 2.5, pointRadius: 0, tension: 0.1 }); });
+        projectionData.forEach((p, i) => {
+            const historicalEnd = historicalData.find(h => h.portfolio.name === p.name).dailyValues.slice(-1)[0];
+            const projectionStartDate = new Date(historicalEnd.date);
+            const getPath = (pathData) => {
+                if (!pathData || pathData.length === 0) return [];
+                const fullPath = [{x: projectionStartDate.valueOf(), y: pathData[0]?.startBalance || 0}];
+                pathData.forEach((val, j) => {
+                    fullPath.push({x: new Date(projectionStartDate.getFullYear()+j+1, projectionStartDate.getMonth(), projectionStartDate.getDate()).valueOf(), y: val.endBalance});
+                });
+                return fullPath;
+            }
+            
+            datasets.push({ label: `${p.name} (Likely Future)`, data: getPath(p.monteCarlo.median.path), borderColor: colors[i % colors.length], borderDash: [6, 3], borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false });
+            
+            const goodPathData = getPath(p.monteCarlo.good.path);
+            const poorPathData = getPath(p.monteCarlo.poor.path);
+            const rangeData = poorPathData.concat(goodPathData.reverse());
+            datasets.push({ label: `${p.name} (Range of Outcomes)`, data: rangeData, borderColor: 'transparent', borderWidth: 0, pointRadius: 0, backgroundColor: colors[i % colors.length] + '1A', fill: 'origin'});
+        });
+        projectionChartInstance = new Chart(ctx, { type: 'line', data: { datasets: datasets }, options: { plugins: { legend: { labels: { filter: item => !item.text.includes('(Range of Outcomes)') } }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); }, label: function(context) { const label = context.dataset.label || ''; const value = formatNumber(context.parsed.y, 'currency'); return `${label}: ${value}`; } } } }, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { ticks: { callback: function(value) { return formatNumber(value, 'currency'); } } } } } });
+    }
+
+    // --- Logging ---
+    function logToPage(message, isError = false, container) {
+        container.classList.remove('hidden');
+        const p = document.createElement('p');
+        p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        if (isError) { p.style.color = 'var(--error-color)'; }
+        container.appendChild(p);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // --- Main Control Flow ---
+    async function runBacktest() {
+        runBtn.disabled = true; loader.style.display = 'block'; errorContainer.textContent = '';
+        infoContainer.style.display = 'none'; resultsArea.classList.add('hidden'); projectionsArea.classList.add('hidden');
+        backtestDebugContainer.innerHTML = '<h4>Backtest Debug Log:</h4>';
+        logToPage('Backtest initiated...', false, backtestDebugContainer);
+
+        try {
+            globalConfig = {
+                initialInvestment: parseFloat(document.getElementById('initial-investment').value), startDate: document.getElementById('start-date').value, endDate: document.getElementById('end-date').value,
+                contributionAmount: parseFloat(document.getElementById('contribution-amount').value), contributionFrequency: document.getElementById('contribution-frequency').value,
+                rebalanceFrequency: document.getElementById('rebalance-frequency').value, reinvestDividends: document.getElementById('reinvest-dividends').value === 'true',
+                riskFreeRate: parseFloat(document.getElementById('risk-free-rate').value) / 100,
+                dividendTaxRate: parseFloat(document.getElementById('dividend-tax-rate').value) / 100, 
+                gainsTaxRate: 0, // Hard-coded to 0 as feature is not implemented
+            };
+            
+            let userPortfolios = parsePortfolios();
+            const userBenchmarks = [...new Set([
+                document.getElementById('benchmark1').value.trim().toUpperCase(),
+                document.getElementById('benchmark2').value.trim().toUpperCase()
+            ].filter(b => b))];
+
+            if (userPortfolios.length === 0 && userBenchmarks.length === 0) { throw new Error("Please configure at least one portfolio or benchmark."); }
+            
+            const allUniqueTickers = Array.from(new Set([...userBenchmarks, ...userPortfolios.flatMap(p => p.tickers.map(t => t.symbol))]));
+            logToPage(`Identified ${allUniqueTickers.length} unique tickers to fetch: ${allUniqueTickers.join(', ')}.`, false, backtestDebugContainer);
+            
+            const priceRequests = allUniqueTickers.map(t => ({ key: t, fetchFn: fetchTickerData, args: [t, globalConfig.startDate, globalConfig.endDate] }));
+            const profileRequests = allUniqueTickers.map(t => ({ key: `${t}_profile`, fetchFn: fetchTickerProfile, args: [t] }));
+            
+            const pricePromise = fetchAllWithRetries(priceRequests, proxies.price, "Price", backtestDebugContainer);
+            const profilePromise = fetchAllWithRetries(profileRequests, proxies.profile, "Profile", backtestDebugContainer);
+
+            const priceResults = await pricePromise;
+            let infoMessages = [];
+
+            const allData = {}; 
+            const failedPriceTickers = priceResults.failures || [];
+            if (failedPriceTickers.length > 0) {
+                 infoMessages.push({ text: "Could not load critical price data for: " + failedPriceTickers.join(', ') + ". These tickers and any portfolios containing them have been excluded.", isBold: true });
+            }
+            allUniqueTickers.forEach(t => { if (priceResults[t]) allData[t] = priceResults[t]; });
+            const successfulTickers = Object.keys(allData);
+            if(successfulTickers.length === 0) { throw new Error("Failed to fetch data for all requested tickers."); }
+
+            const flaggedForSplit = validateAndFlagTickerData(allData);
+            if (flaggedForSplit.length > 0) {
+                infoMessages.push({ text: "The following tickers show unusual price drops and their results may be unreliable due to data errors (e.g. unadjusted stock splits): " + flaggedForSplit.join(', ') + ".", isBold: true });
+            }
+
+            let latestInceptionDate = '1900-01-01';
+            successfulTickers.forEach(t => { if(allData[t].inceptionDate > latestInceptionDate) latestInceptionDate = allData[t].inceptionDate; });
+
+            const effectiveStartDate = (latestInceptionDate > globalConfig.startDate) ? latestInceptionDate : globalConfig.startDate;
+            if (effectiveStartDate !== globalConfig.startDate) {
+                infoMessages.push({ text: `Start date was adjusted to ${effectiveStartDate} to accommodate the inception date of the newest asset.`, isBold: true });
+            }
+
+            if(infoMessages.length > 0) {
+                infoContainer.innerHTML = '';
+                const ul = document.createElement('ul');
+                infoMessages.forEach(m => {
+                    const li = document.createElement('li');
+                    if (m.isBold) {
+                        const strong = document.createElement('strong');
+                        strong.textContent = 'Warning: ';
+                        li.appendChild(strong);
+                    }
+                    li.appendChild(document.createTextNode(m.text)); // Safe text append
+                    ul.appendChild(li);
+                });
+                infoContainer.appendChild(ul);
+                infoContainer.style.display = 'block';
+            }
+            
+            const configForCalc = { ...globalConfig, startDate: effectiveStartDate };
+            logToPage('Starting financial calculations...', false, backtestDebugContainer);
+            
+            const portfoliosForCalc = userPortfolios.filter(p => p.tickers.every(t => successfulTickers.includes(t.symbol)));
+            const benchmarksForCalc = userBenchmarks.filter(b => successfulTickers.includes(b));
+            primaryBenchmarkTicker = successfulTickers.includes(document.getElementById('benchmark1').value.trim().toUpperCase()) ? document.getElementById('benchmark1').value.trim().toUpperCase() : (benchmarksForCalc[0] || null);
+
+            let benchmarkResults = {};
+            if(primaryBenchmarkTicker) {
+                benchmarkResults[primaryBenchmarkTicker] = calculatePortfolioPerformance({name: primaryBenchmarkTicker, tickers: [{symbol: primaryBenchmarkTicker, allocation: 100}]}, allData, configForCalc, null);
+            }
+
+            const portfolioResults = portfoliosForCalc.map(p => calculatePortfolioPerformance(p, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker])).filter(Boolean);
+            
+            benchmarksForCalc.forEach(b => {
+                if(!benchmarkResults[b]) {
+                    benchmarkResults[b] = calculatePortfolioPerformance({name: b, tickers: [{symbol: b, allocation: 100}]}, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker]);
+                }
+            });
+            
+            historicalResults = [...portfolioResults, ...Object.values(benchmarkResults).filter(Boolean)];
+            if (historicalResults.length === 0) {
+                throw new Error("No portfolios or benchmarks could be calculated with the available data.");
+            }
+            logToPage('Calculations complete. Rendering results and chart...', false, backtestDebugContainer);
+            renderResults(historicalResults);
+            renderBacktestChart(historicalResults); // Render new backtest chart
+
+            const projectionStartValueInput = document.getElementById('projection-start-value');
+            const firstUserPortfolioResult = historicalResults.find(r => portfoliosForCalc.some(p => p.name === r.portfolio.name));
+            if (firstUserPortfolioResult) {
+                projectionStartValueInput.value = Math.round(firstUserPortfolioResult.endingBalance);
+            }
+            
+            projectionsArea.classList.remove('hidden'); // Show projection section now
+            runBtn.textContent = 'Re-run Backtest'; // Update button text
+
+            profilePromise.then(allProfiles => {
+                logToPage('Profile data arrived. Updating cost metrics in table...', false, backtestDebugContainer);
+                updateCostMetricsInTable(historicalResults, allProfiles);
+                logToPage('Cost metrics updated.', false, backtestDebugContainer);
+            });
+
+            logToPage('Backtest finished successfully.', false, backtestDebugContainer);
+
+        } catch (error) {
+            logToPage(`FATAL ERROR: ${error.message}`, true, backtestDebugContainer);
+            errorContainer.textContent = `Error: ${error.message}`;
+            console.error(error);
+        } finally {
+            runBtn.disabled = false;
+            loader.style.display = 'none';
+        }
+    }
+    
+    function runProjections() {
+        runProjectionsBtn.disabled = true;
+        projectionsLoader.style.display = 'block';
+        projectionDebugContainer.innerHTML = '<h4>Projection Debug Log:</h4>'; 
+        logToPage('Projections initiated...', false, projectionDebugContainer);
+        
+        try {
+            if (historicalResults.length === 0) { throw new Error('A valid backtest must be run before projections can be calculated.'); }
+            
+            const projectionStartValue = parseFloat(document.getElementById('projection-start-value').value);
+            if (isNaN(projectionStartValue) || projectionStartValue < 0) {
+                throw new Error("Please enter a valid, non-negative Projection Starting Value.");
+            }
+
+            let params = { 
+                goal: projectionGoalSelect.value,
+                simulations: parseInt(document.getElementById('sim-quality').value),
+                startValue: projectionStartValue
+            };
+            
+            const portfolioNames = parsePortfolios().map(p => p.name);
+            const portfoliosToProject = historicalResults.filter(r => portfolioNames.includes(r.portfolio.name));
+            if (portfoliosToProject.length === 0) {
+                throw new Error("No user portfolios from the backtest are available to project.");
+            }
+
+            const freqMap = {'weekly': 52, 'monthly': 12, 'quarterly': 4, 'annually': 1, 'none': 0};
+            const annualContribution = globalConfig.contributionAmount * (freqMap[globalConfig.contributionFrequency] || 0);
+
+            if (params.goal === 'grow') {
+                params.accumulationYears = parseInt(document.getElementById('grow-projection-period').value);
+                params.decumulationYears = 0;
+                params.inflationRate = parseFloat(document.getElementById('grow-inflation-rate').value) / 100;
+                params.contributionIncrease = parseFloat(document.getElementById('grow-contribution-increase').value) / 100;
+                params.initialContribution = annualContribution;
+            } else {
+                const currentAge = parseInt(document.getElementById('current-age').value);
+                const retirementAge = parseInt(document.getElementById('retirement-age').value);
+                const finalAge = parseInt(document.getElementById('final-age').value);
+                params.accumulationYears = Math.max(0, retirementAge - currentAge);
+                params.decumulationYears = Math.max(0, finalAge - retirementAge);
+                params.retirementAge = retirementAge; params.finalAge = finalAge;
+                params.inflationRate = parseFloat(document.getElementById('retire-inflation-rate').value) / 100;
+                params.contributionIncrease = parseFloat(document.getElementById('retire-contribution-increase').value) / 100;
+                params.initialContribution = annualContribution;
+                params.withdrawalStrategy = withdrawalStrategySelect.value;
+                if (params.withdrawalStrategy === 'fixed_amount') { params.withdrawalAmount = parseFloat(document.getElementById('annual-withdrawal-amount').value); }
+                else if (params.withdrawalStrategy === 'percentage') { params.withdrawalRate = parseFloat(document.getElementById('annual-withdrawal-rate').value) / 100; }
+            }
+            logToPage('Starting calculations with params: ' + JSON.stringify(params, null, 2), false, projectionDebugContainer);
+            logToPage(`Running ${params.simulations} simulations for ${portfoliosToProject.length} portfolio(s)...`, false, projectionDebugContainer);
+            
+            const projectionResults = portfoliosToProject.map(p => ({ name: p.portfolio.name, monteCarlo: calculateMonteCarloProjection(p, params) }));
+            logToPage('Calculations finished. Computed projection data.', false, projectionDebugContainer);
+
+            logToPage('Rendering results and chart...', false, projectionDebugContainer);
+            renderProjectionResults(projectionResults, params);
+            renderProjectionChart(portfoliosToProject, projectionResults);
+            projectionsResultsArea.classList.remove('hidden');
+            projectionChartContainer.classList.remove('hidden');
+            projectionsResultsArea.scrollIntoView({ behavior: 'smooth' });
+            logToPage('Projections successfully rendered.', false, projectionDebugContainer);
+        } catch (error) {
+            logToPage(`FATAL ERROR: ${error.message}`, true, projectionDebugContainer);
+            errorContainer.textContent = `Error: ${error.message}`;
+            console.error(error);
+        } finally {
+            runProjectionsBtn.disabled = false;
+            projectionsLoader.style.display = 'none';
+        }
+    }
+    
+    // --- Initializers & Event Listeners ---
+    setDynamicDefaults();
+    addPortfolioBtn.addEventListener('click', () => addPortfolio());
+    runBtn.addEventListener('click', runBacktest);
+    runProjectionsBtn.addEventListener('click', runProjections);
+    
+    // --- JS Fix: Add event listener to relevant inputs to prevent negative values ---
+    document.querySelectorAll('input[type="number"]').forEach(input => {
+        input.addEventListener('input', () => {
+            if (parseFloat(input.value) < 0) {
+                input.value = '0';
+            }
+        });
+    });
+    
+    projectionGoalSelect.addEventListener('change', () => {
+        const isRetire = projectionGoalSelect.value === 'retire';
+        growSettings.classList.toggle('hidden', isRetire);
+        retireSettings.classList.toggle('hidden', !isRetire);
+        if(isRetire) { withdrawalStrategySelect.dispatchEvent(new Event('change')); }
+    });
+    withdrawalStrategySelect.addEventListener('change', () => {
+        const strategy = withdrawalStrategySelect.value;
+        fixedAmountSetting.classList.toggle('hidden', strategy !== 'fixed_amount');
+        percentageSetting.classList.toggle('hidden', strategy !== 'percentage');
+    });
+    projectionGoalSelect.dispatchEvent(new Event('change'));
+
+    // Pre-populate with demo portfolios
+    addPortfolio("Dividend Focus", [{symbol: 'SCHD', alloc: 35}, {symbol: 'VIG', alloc: 25}, {symbol: 'VTI', alloc: 40}]);
+    addPortfolio("Growth Focus", [{symbol: 'QQQ', alloc: 60}, {symbol: 'VUG', alloc: 40}]);
+    addPortfolio("Balanced Core", [{symbol: 'VOO', alloc: 60}, {symbol: 'BND', alloc: 40}]);
+});
+</script>
+
+</body>
+</html>
