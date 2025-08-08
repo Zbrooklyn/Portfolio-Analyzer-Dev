@@ -570,10 +570,84 @@ document.addEventListener("DOMContentLoaded", () => {
         if (type === 'decimal') return num.toFixed(2);
         return num.toLocaleString();
     }
-
+    
     function renderResults(results, primaryBenchmarkTicker) {
-        // This function is complex and correct, but omitted here for brevity as it is unchanged.
-        // In a real file, it would be present.
+        const portfolioNames = results.map(r => r.portfolio.name);
+        
+        function createTable(containerId, metrics) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; 
+            const table = document.createElement('table');
+            const thead = table.createTHead(); const tbody = table.createTBody();
+            const headerRow = thead.insertRow();
+            headerRow.insertCell().outerHTML = '<th>Metric</th>';
+            portfolioNames.forEach(name => { headerRow.insertCell().outerHTML = `<th>${name}</th>`; });
+
+            metrics.forEach(metric => {
+                const tr = tbody.insertRow();
+                const tdMetric = tr.insertCell();
+                tdMetric.innerHTML = `${metric.label} <span class="help-icon" data-tooltip="${metric.help}">?</span>`;
+
+                results.forEach(r => {
+                    const td = tr.insertCell();
+                    if(metric.id) td.id = `${metric.id}-${r.portfolio.id}`;
+                    td.innerHTML = metric.formatter(r);
+                    const cssClass = metric.class ? metric.class(r) : '';
+                    if (cssClass) td.className = cssClass;
+                });
+            });
+            container.appendChild(table);
+        }
+
+        createTable('snapshot-table-container', [
+            { label: 'Starting Balance', help: 'How much the portfolio was worth on the very first day of the back-test.', formatter: r => formatNumber(r.startingBalance, 'currency') },
+            { label: 'Contributions', help: 'Every extra dollar you deposited after day 1.', formatter: r => formatNumber(r.contributions, 'currency') },
+            { label: 'Total Invested', help: 'Starting Balance + Contributions – the full amount you put in.', formatter: r => formatNumber(r.totalInvested, 'currency') },
+            { label: 'Ending Balance', help: 'What the portfolio is worth on the last day of the test.', formatter: r => formatNumber(r.endingBalance, 'currency') },
+            { label: 'Total Return', help: 'Profit or loss since you started, shown in dollars and percent of Total Invested.', formatter: r => `${formatNumber(r.totalReturn, 'currency')} (${formatNumber(r.totalReturnPercent, 'percent')})`, class: r => r.totalReturn >= 0 ? 'positive' : 'negative' },
+            { label: 'Annual Return', help: 'The average yearly growth rate for this test period (also called CAGR).', formatter: r => formatNumber(r.annualReturn, 'percent'), class: r => r.annualReturn >= 0 ? 'positive' : 'negative' },
+        ]);
+        createTable('allocation-table-container', [ 
+            { label: 'Stocks', help: 'Portion of the portfolio invested in stock funds or individual shares.', formatter: r => formatNumber(r.stockPercent, 'percent') }, 
+            { label: 'Bonds', help: 'Portion invested in bond or fixed-income funds.', formatter: r => formatNumber(r.bondPercent, 'percent') }, 
+            { label: 'Cash', help: 'Cash or cash-like positions (including money-market funds).', formatter: r => formatNumber(r.cashPercent, 'percent') },
+        ]);
+        createTable('income-table-container', [
+             { label: 'Total Dividends', help: 'Every dividend dollar the portfolio paid you since day 1.', formatter: r => formatNumber(r.cumulativeDividends, 'currency')},
+             { label: 'Income Last 12 Mo', help: 'Dividends received in the most recent 12-month stretch.', formatter: r => formatNumber(r.incomeLast12Mo, 'currency') },
+             { label: 'Yield on Cost', help: 'Income Last 12 Mo divided by Total Invested (your personal dividend rate).', formatter: r => formatNumber(r.yieldOnCost, 'percent') },
+             { label: 'Income Growth', help: 'Average yearly growth rate of your dividend income since the start.', formatter: r => formatNumber(r.incomeGrowth, 'percent'), class: r => r.incomeGrowth >= 0 ? 'positive' : 'negative' },
+        ]);
+        createTable('costs-table-container', [ 
+            { id: 'er', label: 'Expense Ratio', help: 'The weighted average yearly fee built into your funds.', formatter: () => `<div class="mini-loader"></div>` }, 
+            { id: 'to', label: 'Turnover', help: 'Roughly what percent of the portfolio is bought or sold each year; higher can mean more hidden costs.', formatter: () => `<div class="mini-loader"></div>` }, 
+            { label: 'Tax Drag (Dividends)', help: 'Annualized return lost to taxes on dividends. Does not include capital gains from rebalancing.', formatter: r => formatNumber(r.taxDrag, 'percent', 2), class: r => (r.taxDrag > 0 ? 'negative' : '') }, 
+        ]);
+        createTable('risk-table-container', [
+            { label: 'Volatility', help: 'Typical size of month-to-month ups and downs; bigger means a bumpier ride.', formatter: r => formatNumber(r.volatility, 'percent') },
+            { label: 'Downside Volatility', help: 'Same idea, but it only counts the down months.', formatter: r => formatNumber(r.downsideVol, 'percent') },
+            { label: 'Sharpe Ratio', help: 'Extra return earned for each unit of overall volatility (higher is better).', formatter: r => formatNumber(r.sharpeRatio, 'decimal') },
+            { label: 'Sortino Ratio', help: 'Extra return earned for each unit of downside volatility.', formatter: r => formatNumber(r.sortinoRatio, 'decimal') },
+            { label: `Beta (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's volatility relative to the benchmark (${primaryBenchmarkTicker}). A Beta of 1.1 means it's 10% more volatile than the benchmark.`, formatter: r => r.beta !== null ? formatNumber(r.beta, 'decimal') : (r.portfolio.name === primaryBenchmarkTicker ? '1.00' : 'N/A') },
+            { label: `Alpha (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's ability to outperform the market. A positive Alpha means it performed better than its benchmark, considering the risk it took.`, formatter: r => r.alpha !== null ? formatNumber(r.alpha, 'percent') : (r.portfolio.name === primaryBenchmarkTicker ? formatNumber(0, 'percent') : 'N/A'), class: r => r.alpha !== null ? (r.alpha >= 0 ? 'positive' : 'negative') : '' },
+            { label: 'Best Year', help: 'The highest return achieved in any 12-month period during the test.', formatter: r => formatNumber(r.bestYear, 'percent'), class: () => 'positive' },
+            { label: 'Worst Year', help: 'The lowest return achieved in any 12-month period during the test.', formatter: r => formatNumber(r.worstYear, 'percent'), class: () => 'negative' },
+        ]);
+        createTable('drawdown-table-container', [ { label: 'Worst Drop', help: 'The worst percentage fall from a high point to a low point during the test.', formatter: r => formatNumber(r.maxDrawdown, 'percent'), class: () => 'negative' }, { label: 'Drop Now', help: 'How far below its most recent high the portfolio is today.', formatter: r => formatNumber(r.dropNow, 'percent'), class: () => 'negative' }, { label: 'Longest Recovery', help: 'Most days it took to climb from a low back to a new high.', formatter: r => formatNumber(r.longestRecovery, 'days') }, ]);
+        createTable('consistency-table-container', [ { label: 'Winning Months', help: 'Percent of months that finished higher than they started.', formatter: r => formatNumber(r.winningMonths, 'percent') }, { label: 'Winning Streak', help: 'Longest run of consecutive winning months.', formatter: r => formatNumber(r.winningStreak, 'months') }, { label: 'Losing Streak', help: 'Longest run of consecutive losing months.', formatter: r => formatNumber(r.losingStreak, 'months') }, ]);
+        
+        const holdingsTablesContainer = document.getElementById('holdings-tables-container');
+        holdingsTablesContainer.innerHTML = '';
+        results.filter(r => r.breakdown).forEach(r => {
+            const portfolioHeader = document.createElement('h3');
+            portfolioHeader.textContent = r.portfolio.name;
+            portfolioHeader.style.marginTop = '20px';
+            holdingsTablesContainer.appendChild(portfolioHeader);
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+            tableContainer.innerHTML = `<table><thead><tr><th>Ticker</th><th>Inception</th><th>Target %</th><th>Shares</th><th>Start $</th><th>End $</th><th>Drift %</th></tr></thead><tbody>${r.breakdown.map(t => `<tr><td>${t.symbol}</td><td>${t.inceptionDate}</td><td>${formatNumber(t.allocation / 100, 'percent', 1)}</td><td>${t.shares.toFixed(2)}</td><td>${formatNumber(t.valueStart, 'currency')}</td><td>${formatNumber(t.valueEnd, 'currency')}</td><td class="${t.drift >= 0 ? 'positive' : 'negative'}">${t.drift.toFixed(1)} %</td></tr>`).join('')}</tbody></table>`;
+            holdingsTablesContainer.appendChild(tableContainer);
+        });
     }
 
     function renderProjectionResults(projectionResults, params) {
@@ -692,7 +766,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const scenarioKeys = ['good', 'median', 'poor'];
         scenarios.forEach((s, i) => {
             const tab = document.createElement('button');
-            tab.className = `scenario-tab ${i === 1 ? 'active' : ''}`; // Default to middle
+            tab.className = `scenario-tab ${i === 1 ? 'active' : ''}`;
             tab.dataset.scenarioKey = scenarioKeys[i];
             tab.textContent = s;
             scenarioTabs.appendChild(tab);
@@ -748,7 +822,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return content;
         };
         
-        scenarioContent.appendChild(createScenarioContent('median')); // Default view
+        scenarioContent.appendChild(createScenarioContent('median'));
         scenarioTabs.addEventListener('click', e => {
             if (e.target.classList.contains('scenario-tab')) {
                 scenarioTabs.querySelectorAll('.scenario-tab').forEach(p => p.classList.remove('active'));
@@ -788,6 +862,7 @@ document.addEventListener("DOMContentLoaded", () => {
         projectionChartInstance = new Chart(ctx, { type: 'line', data: { datasets: datasets }, options: { plugins: { legend: { labels: { filter: item => !item.text.includes('(Range of Outcomes)') } }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); }, label: function(context) { const label = context.dataset.label || ''; const value = formatNumber(context.parsed.y, 'currency'); return `${label}: ${value}`; } } } }, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { ticks: { callback: function(value) { return formatNumber(value, 'currency'); } } } } } });
     }
 
+    // --- Logging ---
     function logToPage(message, isError = false, container) {
         container.classList.remove('hidden');
         const p = document.createElement('p');
@@ -797,6 +872,7 @@ document.addEventListener("DOMContentLoaded", () => {
         container.scrollTop = container.scrollHeight;
     }
 
+    // --- Main Control Flow ---
     async function runBacktest() {
         ui.runBtn.disabled = true; ui.loader.style.display = 'block'; ui.errorContainer.textContent = '';
         ui.infoContainer.style.display = 'none'; ui.resultsArea.classList.add('hidden'); ui.projectionsArea.classList.add('hidden');
@@ -824,7 +900,10 @@ document.addEventListener("DOMContentLoaded", () => {
             if (userPortfolios.length === 0 && userBenchmarks.length === 0) { throw new Error("Please configure at least one portfolio or benchmark."); }
             const allUniqueTickers = Array.from(new Set([...userBenchmarks, ...userPortfolios.flatMap(p => p.tickers.map(t => t.symbol))]));
             const priceRequests = allUniqueTickers.map(t => ({ key: t, fetchFn: fetchTickerData, args: [t, appState.backtestConfig.startDate, appState.backtestConfig.endDate] }));
-            const priceResults = await fetchAllWithRetries(priceRequests, proxies.price, "Price", ui.backtestDebugContainer);
+            const profileRequests = allUniqueTickers.map(t => ({ key: `${t}_profile`, fetchFn: fetchTickerProfile, args: [t] }));
+            const pricePromise = fetchAllWithRetries(priceRequests, proxies.price, "Price", ui.backtestDebugContainer);
+            const profilePromise = fetchAllWithRetries(profileRequests, proxies.profile, "Profile", ui.backtestDebugContainer);
+            const priceResults = await pricePromise;
             let infoMessages = [];
             const allData = {}; 
             const failedPriceTickers = priceResults.failures || [];
@@ -843,9 +922,17 @@ document.addEventListener("DOMContentLoaded", () => {
             const configForCalc = { ...appState.backtestConfig, startDate: effectiveStartDate };
             appState.backtestConfig.effectiveStartDate = effectiveStartDate;
             const portfoliosForCalc = userPortfolios.filter(p => p.tickers.every(t => successfulTickers.includes(t.symbol)));
-            appState.historicalResults = portfoliosForCalc.map(p => calculatePortfolioPerformance(p, allData, configForCalc, null)).filter(Boolean);
-            if (appState.historicalResults.length === 0) throw new Error("No portfolios could be calculated.");
-            renderResults(appState.historicalResults, ''); // Simplified for brevity
+            const primaryBenchmarkTicker = successfulTickers.includes(document.getElementById('benchmark1').value.trim().toUpperCase()) ? document.getElementById('benchmark1').value.trim().toUpperCase() : (userBenchmarks.filter(b => successfulTickers.includes(b))[0] || null);
+            let benchmarkResults = {};
+            if(primaryBenchmarkTicker) {
+                benchmarkResults[primaryBenchmarkTicker] = calculatePortfolioPerformance({name: primaryBenchmarkTicker, tickers: [{symbol: primaryBenchmarkTicker, allocation: 100}]}, allData, configForCalc, null);
+            }
+            const portfolioResults = portfoliosForCalc.map(p => calculatePortfolioPerformance(p, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker])).filter(Boolean);
+            userBenchmarks.forEach(b => { if(!benchmarkResults[b] && successfulTickers.includes(b)) benchmarkResults[b] = calculatePortfolioPerformance({name: b, tickers: [{symbol: b, allocation: 100}]}, allData, configForCalc, benchmarkResults[primaryBenchmarkTicker]); });
+            appState.historicalResults = [...portfolioResults, ...Object.values(benchmarkResults).filter(Boolean)];
+            if (appState.historicalResults.length === 0) throw new Error("No portfolios or benchmarks could be calculated.");
+            renderResults(appState.historicalResults, primaryBenchmarkTicker);
+            profilePromise.then(allProfiles => { updateCostMetricsInTable(appState.historicalResults, allProfiles); });
             ui.runProjectionsBtn.disabled = false;
         } catch (error) {
             logToPage(`FATAL ERROR: ${error.message}`, true, ui.backtestDebugContainer);
@@ -875,7 +962,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 params.decumulationYears = 0;
                 params.contributionIncrease = getNumericInput('grow-contribution-increase', 'Contribution Increase') / 100;
                 params.initialContribution = annualContribution;
-            } else { // 'retire'
+            } else {
                 const currentAge = getNumericInput('current-age', 'Current Age', false);
                 const retirementAge = getNumericInput('retirement-age', 'Retirement Age', false);
                 const finalAge = getNumericInput('final-age', 'Final Age', false);
