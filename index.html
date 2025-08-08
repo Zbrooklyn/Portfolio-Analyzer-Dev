@@ -1,12 +1,12 @@
-
 <!DOCTYPE html>
 
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha256-q/N0JOCV4oqvX1S1iM6vFkPZ0pB1yBf9N65q0yC1Vcc='; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
-  <title>Portfolio Backtester v7.4.0 (Audited)</title>
+  <!-- FIX: Added 'unsafe-inline' to script-src to allow the inline script to run. Removed stale hash. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
+  <title>Portfolio Backtester v7.4.1 (Audited)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
   <style>
@@ -39,7 +39,6 @@
       width: 100%; box-sizing: border-box; font-size: 15px; padding: 10px;
       border-radius: 6px; border: 1px solid var(--border-color);
     }
-    /* --- Accessibility Fix: Visible Focus States --- */
     input:focus-visible, select:focus-visible, button:focus-visible {
         outline: 2px solid var(--primary-color);
         outline-offset: 2px;
@@ -60,6 +59,16 @@
         font-size: 13px; font-weight: 400; line-height: 1.5;
     }
     #portfolios-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+    /* --- UX Fix: Style for portfolio empty state --- */
+    #portfolios-empty-state {
+        text-align: center;
+        padding: 30px 20px;
+        background-color: #f8f9fa;
+        border: 2px dashed var(--border-color);
+        border-radius: 8px;
+        color: var(--text-light);
+        font-weight: 500;
+    }
     .portfolio-card { border: 1px solid transparent; border-radius: 8px; padding: 15px; background: #f8f9fa; }
     .portfolio-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .portfolio-header input[type="text"] { font-size: 18px; font-weight: bold; border: none; background: transparent; padding: 5px; width: 70%; }
@@ -68,6 +77,7 @@
     .ticker-input-row input { text-transform: uppercase; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; }
     .remove-ticker-btn { background: var(--red); color: white; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; font-size: 14px; line-height: 26px; text-align: center; }
     .add-btn { background: var(--primary-color); color: white; border: none; border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 500; }
+    #add-portfolio-btn { margin-top: 15px; } /* CSS Fix: Moved inline style to stylesheet */
     .add-ticker-btn { font-size: 14px; padding: 8px 12px; }
 
     .run-button-container { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 25px 0; }
@@ -75,7 +85,6 @@
     #run-backtest-btn:disabled, #run-projections-btn:disabled { background-color: #a0c3ff; cursor: not-allowed; }
     .loader { display: none; width: 24px; height: 24px; border: 3px solid var(--primary-color); border-bottom-color: transparent; border-radius: 50%; animation: rotation 1s linear infinite; }
     @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    /* --- CSS Fix: Style for mini-loader --- */
     .mini-loader { display: inline-block; vertical-align: middle; width: 14px; height: 14px; border: 2px solid var(--primary-color); border-bottom-color: transparent; border-radius: 50%; animation: rotation 0.8s linear infinite; }
     #error-container { color: var(--error-color); text-align: center; font-weight: bold; margin: 15px auto; max-width: 600px; }
     #info-container {
@@ -169,6 +178,8 @@
     .scenario-tab:hover { background-color: #e9ecef; }
     .scenario-tab.active { background-color: var(--primary-color); color: white; }
     .toggle-year-btn { font-size: 12px; padding: 5px 10px; margin-top: 5px; cursor: pointer; }
+    .toggle-year-btn:disabled { cursor: not-allowed; background-color: #e9ecef; color: var(--text-light); }
+
 
     @media (max-width: 768px) {
       .app-container { padding: 5px; } .section-card { padding: 15px; }
@@ -183,7 +194,7 @@
   <div id="master-tooltip"></div>
   <main class="app-container">
     <h1>Portfolio Backtester</h1>
-    <p class="version">Version 7.4.0 (Audited)</p>
+    <p class="version">Version 7.4.1 (Audited)</p>
 
 <!-- Setup Section -->
 <section id="setup-card" class="section-card">
@@ -208,14 +219,17 @@
 <section class="section-card">
   <h2>2. Configure Portfolios</h2>
   <div id="portfolios-container"></div>
-  <button id="add-portfolio-btn" class="add-btn" style="margin-top: 15px;">+ Add Portfolio</button>
+  <!-- UX Fix: Empty state container -->
+  <div id="portfolios-empty-state" class="hidden">
+      No portfolios configured. Click <strong>+ Add Portfolio</strong> to get started!
+  </div>
+  <button id="add-portfolio-btn" class="add-btn">+ Add Portfolio</button>
 </section>
 
 <div class="run-button-container">
     <button id="run-backtest-btn" class="add-btn">Run Backtest</button>
     <div id="loader" class="loader"></div>
 </div>
-<!-- HTML Fix: Add aria-live for accessibility -->
 <div id="error-container" aria-live="polite"></div>
 <div id="info-container" aria-live="polite"></div>
 <div id="backtest-debug-container" class="debug-log hidden"><h4>Backtest Debug Log:</h4></div>
@@ -223,7 +237,6 @@
 <!-- Results Dashboard -->
 <div id="results-area" class="hidden">
   <section class="section-card" style="padding-bottom: 5px;"><h2>3. Backtest Results</h2></section>
-  <!-- UX Fix: Add Performance Chart Section -->
   <section id="performance-chart-card" class="section-card hidden">
     <h2>Performance Chart</h2>
     <div style="width: 100%; max-width: 900px; margin: auto; padding-top: 10px;">
@@ -329,6 +342,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const masterTooltip = document.getElementById('master-tooltip');
     const portfoliosContainer = document.getElementById('portfolios-container');
+    const portfoliosEmptyState = document.getElementById('portfolios-empty-state');
     const errorContainer = document.getElementById('error-container');
     const infoContainer = document.getElementById('info-container');
     const resultsArea = document.getElementById('results-area');
@@ -379,6 +393,13 @@ document.addEventListener("DOMContentLoaded", () => {
             masterTooltip.style.visibility = 'hidden'; masterTooltip.style.opacity = '0';
         }
     });
+
+    // --- UX Fix: Function to manage empty state visibility ---
+    function toggleEmptyState() {
+        const hasPortfolios = portfoliosContainer.querySelector('.portfolio-card');
+        portfoliosEmptyState.classList.toggle('hidden', !!hasPortfolios);
+        portfoliosContainer.classList.toggle('hidden', !hasPortfolios);
+    }
     
     // --- Portfolio Builder & Parsing ---
     function addPortfolio(name = '', tickers = []) {
@@ -397,9 +418,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-portfolio-btn';
-        removeBtn.textContent = '×'; // Using textContent is safer
-        removeBtn.setAttribute('aria-label', 'Remove Portfolio'); // Accessibility fix
-        removeBtn.addEventListener('click', () => card.remove());
+        removeBtn.textContent = '×';
+        removeBtn.setAttribute('aria-label', 'Remove Portfolio');
+        removeBtn.addEventListener('click', () => {
+            card.remove();
+            toggleEmptyState(); // Check empty state after removing
+        });
 
         header.appendChild(nameInput);
         header.appendChild(removeBtn);
@@ -416,6 +440,7 @@ document.addEventListener("DOMContentLoaded", () => {
         card.appendChild(tickersList);
         card.appendChild(addTickerBtn);
         portfoliosContainer.appendChild(card);
+        toggleEmptyState(); // Check empty state after adding
 
         if (tickers.length > 0) { tickers.forEach(t => addTicker(card, t.symbol, t.alloc)); } 
         else { addTicker(card); }
@@ -439,12 +464,12 @@ document.addEventListener("DOMContentLoaded", () => {
         allocInput.className = 'allocation-input';
         allocInput.value = allocation;
         allocInput.style.width = '35%';
-        allocInput.min = "0"; // Validation fix
+        allocInput.min = "0";
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-ticker-btn';
-        removeBtn.textContent = '×'; // Safer than innerHTML
-        removeBtn.setAttribute('aria-label', 'Remove Ticker'); // Accessibility fix
+        removeBtn.textContent = '×';
+        removeBtn.setAttribute('aria-label', 'Remove Ticker');
         removeBtn.addEventListener('click', () => row.remove());
 
         row.appendChild(tickerInput);
@@ -470,7 +495,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     // --- Data Fetching & Validation ---
-    // Note: External CORS proxies are inherently fragile.
     const proxies = {
         price: ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url="],
         profile: ["https://api.allorigins.win/raw?url=", "https://corsproxy.io/?"]
@@ -562,7 +586,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = await res.json();
         
         const profile = data?.quoteSummary?.result?.[0]?.fundProfile;
-        if (!profile) return { expenseRatio: null, turnover: null }; // Use null for missing data
+        if (!profile) return { expenseRatio: null, turnover: null };
 
         const expenseRatio = profile.annualReportExpenseRatio?.raw ?? null;
         const turnover = profile.annualHoldingsTurnover?.raw ?? null;
@@ -577,7 +601,7 @@ document.addEventListener("DOMContentLoaded", () => {
             for (let i = 1; i < sortedDates.length; i++) {
                 const prevPrice = prices[sortedDates[i-1]];
                 const currentPrice = prices[sortedDates[i]];
-                if(prevPrice > 0 && (currentPrice / prevPrice - 1) < -0.5) { // More than 50% drop
+                if(prevPrice > 0 && (currentPrice / prevPrice - 1) < -0.5) { 
                     flaggedTickers.add(ticker);
                     break;
                 }
@@ -595,7 +619,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function calculatePortfolioPerformance(portfolio, allData, config, benchmarkData = null) {
         const { initialInvestment, startDate, endDate, contributionAmount, contributionFrequency, rebalanceFrequency, reinvestDividends, riskFreeRate, dividendTaxRate } = config;
         const tradingDays = Object.keys(allData[Object.keys(allData)[0]].prices).sort().filter(d => d >= startDate && d <= endDate);
-        if (tradingDays.length === 0) return null; // Return null if no data
+        if (tradingDays.length === 0) return null;
         
         const holdings = {};
         for (const { symbol, allocation } of portfolio.tickers) {
@@ -628,7 +652,7 @@ document.addEventListener("DOMContentLoaded", () => {
             for (const symbol in holdings) {
                 if(symbol === 'CASH') continue;
                 const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
-                if (!price || price <= 0) continue; // Skip if price is invalid
+                if (!price || price <= 0) continue;
                 if (holdings[symbol].data.dividends[day]) {
                     const grossDivAmount = holdings[symbol].shares * holdings[symbol].data.dividends[day];
                     dailyDividends += grossDivAmount;
@@ -670,7 +694,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (rebalanceFrequency !== 'never' && currentDate >= nextRebalanceDate) {
-                // NOTE: Capital Gains tax on rebalancing is not implemented.
                 for (const { symbol, allocation } of portfolio.tickers) {
                     const price = holdings[symbol].data.prices[day] || holdings[symbol].data.prices[prevDay];
                     if (!price || price <= 0) continue;
@@ -1001,7 +1024,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 results.forEach(r => {
                     const td = tr.insertCell();
                     if(metric.id) td.id = `${metric.id}-${r.portfolio.id}`;
-                    td.innerHTML = metric.formatter(r); // Use innerHTML only for the mini-loader pattern
+                    td.innerHTML = metric.formatter(r);
                     const cssClass = metric.class ? metric.class(r) : '';
                     if (cssClass) td.className = cssClass;
                 });
@@ -1090,7 +1113,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderProjectionResults(projectionResults, params) {
-        projectionsResultsArea.innerHTML = ''; // Clear old results
+        projectionsResultsArea.innerHTML = ''; 
 
         const createTable = (title, metrics, results) => {
             const h3 = document.createElement('h3');
@@ -1309,7 +1332,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 buttonWrapper.appendChild(showMoreBtn);
                 const exportBtn = document.createElement('button');
                 exportBtn.className = 'toggle-year-btn';
-                exportBtn.textContent = `Export CSV`;
+                exportBtn.textContent = `Export CSV (soon)`; // Fix: Clarify unimplemented feature
+                exportBtn.disabled = true; // Fix: Disable dead control
                 exportBtn.style.marginLeft = '10px';
                 buttonWrapper.appendChild(exportBtn);
                 content.appendChild(buttonWrapper);
@@ -1389,9 +1413,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 initialInvestment: parseFloat(document.getElementById('initial-investment').value), startDate: document.getElementById('start-date').value, endDate: document.getElementById('end-date').value,
                 contributionAmount: parseFloat(document.getElementById('contribution-amount').value), contributionFrequency: document.getElementById('contribution-frequency').value,
                 rebalanceFrequency: document.getElementById('rebalance-frequency').value, reinvestDividends: document.getElementById('reinvest-dividends').value === 'true',
-                riskFreeRate: parseFloat(document.getElementById('risk-free-rate').value) / 100,
+                riskFreeRate: parseFloat(document.getElementById('risk-free-rate').value) / 100, 
                 dividendTaxRate: parseFloat(document.getElementById('dividend-tax-rate').value) / 100, 
-                gainsTaxRate: 0, // Hard-coded to 0 as feature is not implemented
+                gainsTaxRate: 0,
             };
             
             let userPortfolios = parsePortfolios();
@@ -1446,7 +1470,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         strong.textContent = 'Warning: ';
                         li.appendChild(strong);
                     }
-                    li.appendChild(document.createTextNode(m.text)); // Safe text append
+                    li.appendChild(document.createTextNode(m.text));
                     ul.appendChild(li);
                 });
                 infoContainer.appendChild(ul);
@@ -1479,7 +1503,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             logToPage('Calculations complete. Rendering results and chart...', false, backtestDebugContainer);
             renderResults(historicalResults);
-            renderBacktestChart(historicalResults); // Render new backtest chart
+            renderBacktestChart(historicalResults);
 
             const projectionStartValueInput = document.getElementById('projection-start-value');
             const firstUserPortfolioResult = historicalResults.find(r => portfoliosForCalc.some(p => p.name === r.portfolio.name));
@@ -1487,8 +1511,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 projectionStartValueInput.value = Math.round(firstUserPortfolioResult.endingBalance);
             }
             
-            projectionsArea.classList.remove('hidden'); // Show projection section now
-            runBtn.textContent = 'Re-run Backtest'; // Update button text
+            projectionsArea.classList.remove('hidden');
+            runBtn.textContent = 'Re-run Backtest';
 
             profilePromise.then(allProfiles => {
                 logToPage('Profile data arrived. Updating cost metrics in table...', false, backtestDebugContainer);
@@ -1528,8 +1552,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 startValue: projectionStartValue
             };
             
-            const portfolioNames = parsePortfolios().map(p => p.name);
-            const portfoliosToProject = historicalResults.filter(r => portfolioNames.includes(r.portfolio.name));
+            const userPortfolioNames = parsePortfolios().map(p => p.name);
+            const portfoliosToProject = historicalResults.filter(r => userPortfolioNames.includes(r.portfolio.name));
             if (portfoliosToProject.length === 0) {
                 throw new Error("No user portfolios from the backtest are available to project.");
             }
@@ -1549,7 +1573,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 const finalAge = parseInt(document.getElementById('final-age').value);
                 params.accumulationYears = Math.max(0, retirementAge - currentAge);
                 params.decumulationYears = Math.max(0, finalAge - retirementAge);
-                params.retirementAge = retirementAge; params.finalAge = finalAge;
                 params.inflationRate = parseFloat(document.getElementById('retire-inflation-rate').value) / 100;
                 params.contributionIncrease = parseFloat(document.getElementById('retire-contribution-increase').value) / 100;
                 params.initialContribution = annualContribution;
@@ -1557,11 +1580,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (params.withdrawalStrategy === 'fixed_amount') { params.withdrawalAmount = parseFloat(document.getElementById('annual-withdrawal-amount').value); }
                 else if (params.withdrawalStrategy === 'percentage') { params.withdrawalRate = parseFloat(document.getElementById('annual-withdrawal-rate').value) / 100; }
             }
-            logToPage('Starting calculations with params: ' + JSON.stringify(params, null, 2), false, projectionDebugContainer);
-            logToPage(`Running ${params.simulations} simulations for ${portfoliosToProject.length} portfolio(s)...`, false, projectionDebugContainer);
+            logToPage(`Running ${params.simulations} simulations...`, false, projectionDebugContainer);
             
             const projectionResults = portfoliosToProject.map(p => ({ name: p.portfolio.name, monteCarlo: calculateMonteCarloProjection(p, params) }));
-            logToPage('Calculations finished. Computed projection data.', false, projectionDebugContainer);
+            logToPage('Calculations finished.', false, projectionDebugContainer);
 
             logToPage('Rendering results and chart...', false, projectionDebugContainer);
             renderProjectionResults(projectionResults, params);
@@ -1586,7 +1608,6 @@ document.addEventListener("DOMContentLoaded", () => {
     runBtn.addEventListener('click', runBacktest);
     runProjectionsBtn.addEventListener('click', runProjections);
     
-    // --- JS Fix: Add event listener to relevant inputs to prevent negative values ---
     document.querySelectorAll('input[type="number"]').forEach(input => {
         input.addEventListener('input', () => {
             if (parseFloat(input.value) < 0) {
@@ -1612,6 +1633,9 @@ document.addEventListener("DOMContentLoaded", () => {
     addPortfolio("Dividend Focus", [{symbol: 'SCHD', alloc: 35}, {symbol: 'VIG', alloc: 25}, {symbol: 'VTI', alloc: 40}]);
     addPortfolio("Growth Focus", [{symbol: 'QQQ', alloc: 60}, {symbol: 'VUG', alloc: 40}]);
     addPortfolio("Balanced Core", [{symbol: 'VOO', alloc: 60}, {symbol: 'BND', alloc: 40}]);
+    
+    // Initial check for the empty state on page load
+    toggleEmptyState();
 });
 </script>
 
