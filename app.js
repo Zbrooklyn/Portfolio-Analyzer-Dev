@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
         endDateInput: document.getElementById('end-date'),
         startDateInput: document.getElementById('start-date'),
     };
-    const REMOVE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L6 18M6 6l12 12" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const REMOVE_ICON_SVG = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.343 14.343a1 1 0 0 1-1.414-1.414L6.586 8 .929 2.343a1 1 0 1 1 1.414-1.414L8 6.586l5.657-5.657a1 1 0 1 1 1.414 1.414L9.414 8l5.657 5.657a1 1 0 0 1-1.414 1.414L8 9.414l-5.657 4.929z"></path></svg>`;
 
     // --- Dynamic Defaults & Initialization ---
     function setDynamicDefaults() {
@@ -83,32 +83,38 @@ document.addEventListener("DOMContentLoaded", () => {
         const card = document.createElement('div');
         card.className = 'portfolio-card';
         card.id = `portfolio-${portfolioCount}`;
+
         const header = document.createElement('div');
         header.className = 'portfolio-header';
+
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.value = name || `Portfolio ${portfolioCount}`;
         nameInput.className = 'portfolio-name-input';
         nameInput.setAttribute('aria-label', `Portfolio ${portfolioCount} Name`);
+
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-portfolio-btn';
-        removeBtn.innerHTML = '&times; Remove';
+        removeBtn.className = 'btn btn--secondary';
+        removeBtn.textContent = 'Remove';
         removeBtn.setAttribute('aria-label', `Remove ${name || `Portfolio ${portfolioCount}`}`);
         removeBtn.addEventListener('click', () => card.remove());
+
         header.appendChild(nameInput);
         header.appendChild(removeBtn);
+
         const tickersList = document.createElement('div');
         tickersList.className = 'tickers-list';
+
         const addTickerBtn = document.createElement('button');
-        addTickerBtn.className = 'add-ticker-btn add-btn';
-        addTickerBtn.style.fontSize = '14px';
-        addTickerBtn.style.padding = '8px 12px';
-        addTickerBtn.textContent = '+ Add Ticker';
+        addTickerBtn.className = 'btn btn--secondary';
+        addTickerBtn.textContent = '+ Ticker';
         addTickerBtn.addEventListener('click', () => addTicker(card));
+
         card.appendChild(header);
         card.appendChild(tickersList);
         card.appendChild(addTickerBtn);
         ui.portfoliosContainer.appendChild(card);
+
         if (tickers.length > 0) { tickers.forEach(t => addTicker(card, t.symbol, t.alloc)); } 
         else { addTicker(card); }
     }
@@ -117,25 +123,27 @@ document.addEventListener("DOMContentLoaded", () => {
         const tickersList = portfolioCard.querySelector('.tickers-list');
         const row = document.createElement('div');
         row.className = 'ticker-input-row';
+
         const tickerInput = document.createElement('input');
         tickerInput.type = 'text';
         tickerInput.placeholder = 'Ticker';
-        tickerInput.className = 'ticker-input';
+        tickerInput.className = 'form-control ticker-input';
         tickerInput.value = ticker;
-        tickerInput.style.width = '50%';
         tickerInput.setAttribute('aria-label', 'Ticker Symbol');
+
         const allocInput = document.createElement('input');
         allocInput.type = 'number';
         allocInput.placeholder = '%';
-        allocInput.className = 'allocation-input';
+        allocInput.className = 'form-control allocation-input';
         allocInput.value = allocation;
-        allocInput.style.width = '35%';
         allocInput.setAttribute('aria-label', 'Allocation Percentage');
+
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-ticker-btn';
+        removeBtn.className = 'btn btn--icon btn--secondary';
         removeBtn.innerHTML = REMOVE_ICON_SVG;
         removeBtn.setAttribute('aria-label', 'Remove ticker');
         removeBtn.addEventListener('click', () => row.remove());
+
         row.appendChild(tickerInput);
         row.appendChild(allocInput);
         row.appendChild(removeBtn);
@@ -483,146 +491,27 @@ document.addEventListener("DOMContentLoaded", () => {
         const z0 = Math.sqrt(-2.0*Math.log(u1))*Math.cos(2.0*Math.PI*u2); 
         return z0 * stdDev + mean; 
     }
-
-    function calculateDeterministicProjection(portfolioResult, params) {
-        const { accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, goal } = params;
-        const hist_cagr = portfolioResult.annualReturn;
-        const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0;
-        let value = portfolioResult.endingBalance;
-        const path = [];
-        let annualContribution = initialContribution;
-        for (let y = 0; y < accumulationYears; y++) {
-            const startOfYearValue = value;
-            value += annualContribution;
-            value *= (1 + hist_cagr);
-            path.push({ year: y + 1, startBalance: startOfYearValue, contributions: annualContribution, dividends: startOfYearValue * hist_dividend_yield, withdrawals: 0, salesNeeded: 0, endBalance: value });
-            annualContribution *= (1 + contributionIncrease);
-        }
-        const balanceAtRetirement = value;
-        if (goal === 'retire') {
-            for (let y = 0; y < decumulationYears; y++) {
-                if (value <= 0) {
-                    path.push({ year: accumulationYears + y + 1, startBalance: 0, contributions: 0, dividends: 0, withdrawals: 0, salesNeeded: 0, endBalance: 0 });
-                    continue;
-                }
-                const startOfYearValue = value;
-                const dividendsGenerated = startOfYearValue * hist_dividend_yield;
-                let currentWithdrawal = 0;
-                if (withdrawalStrategy === 'dividends') { currentWithdrawal = dividendsGenerated; } 
-                else if (withdrawalStrategy === 'percentage') { currentWithdrawal = startOfYearValue * withdrawalRate; } 
-                else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; }
-                value -= currentWithdrawal;
-                if (value > 0) { value *= (1 + hist_cagr); }
-                if (value < 0) value = 0;
-                path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, contributions: 0, dividends: dividendsGenerated, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - dividendsGenerated), endBalance: value });
-            }
-        }
-        const endingBalance = path.length > 0 ? path[path.length - 1].endBalance : portfolioResult.endingBalance;
-        const dividendsAtRetirement = (path[accumulationYears]?.startBalance || 0) * hist_dividend_yield;
-        return { path, endingBalance, balanceAtRetirement, dividendsAtRetirement, dividendYieldAtRetirement: hist_dividend_yield };
-    }
-
-    function calculateMonteCarloProjection(portfolioResult, params) {
-        const { simulations, accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, goal } = params;
-        const hist_cagr = portfolioResult.annualReturn;
-        const hist_volatility = portfolioResult.volatility;
-        const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0;
-        const total_arithmetic_mean = hist_cagr + (Math.pow(hist_volatility, 2) / 2);
-        const drift = total_arithmetic_mean - (Math.pow(hist_volatility, 2) / 2);
-        const yearPaths = [];
-        let failures = 0;
-        for (let i = 0; i < simulations; i++) {
-            let value = portfolioResult.endingBalance;
-            const path = [];
-            let annualContribution = initialContribution;
-            for (let y = 0; y < accumulationYears; y++) {
-                const startOfYearValue = value;
-                value += annualContribution;
-                value *= Math.exp(generateRandomReturn(drift, hist_volatility));
-                if (!isFinite(value) || value < 0) { value = 0; break; }
-                path.push({ year: y + 1, startBalance: startOfYearValue, contributions: annualContribution, dividends: startOfYearValue * hist_dividend_yield, withdrawals: 0, salesNeeded: 0, endBalance: value });
-                annualContribution *= (1 + contributionIncrease);
-            }
-            if (goal === 'retire') {
-                for (let y = 0; y < decumulationYears; y++) {
-                    if (value <= 0) {
-                         path.push({ year: accumulationYears + y + 1, startBalance: 0, contributions: 0, dividends: 0, withdrawals: 0, salesNeeded: 0, endBalance: 0 });
-                         continue;
-                    }
-                    const startOfYearValue = value;
-                    const dividendsGenerated = startOfYearValue * hist_dividend_yield;
-                    let currentWithdrawal = 0;
-                    if (withdrawalStrategy === 'dividends') { currentWithdrawal = dividendsGenerated; } 
-                    else if (withdrawalStrategy === 'percentage') { currentWithdrawal = startOfYearValue * withdrawalRate; } 
-                    else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; }
-                    value -= currentWithdrawal;
-                    if (value > 0) { value *= Math.exp(generateRandomReturn(drift, hist_volatility)); }
-                    if (!isFinite(value) || value < 0) { value = 0; }
-                    path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, contributions: 0, dividends: dividendsGenerated, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - dividendsGenerated), endBalance: value });
-                }
-            }
-            if (goal === 'retire' && path.length > 0 && path[path.length - 1].endBalance <= 0) { failures++; }
-            yearPaths.push(path);
-        }
-        const getPercentilePath = (percentile) => {
-            const sortedPaths = yearPaths.sort((a,b) => {
-                const aEnd = a.length > 0 ? a[a.length-1].endBalance : 0;
-                const bEnd = b.length > 0 ? b[b.length-1].endBalance : 0;
-                return aEnd - bEnd;
-            });
-            return sortedPaths[Math.floor(simulations * percentile)] || [];
-        };
-        const calculatePathMetrics = (path) => {
-            if (!path || path.length === 0) return { path: [], endingBalance: 0, balanceAtRetirement: 0, dividendsAtRetirement: 0, dividendYieldAtRetirement: 0 };
-            const balanceAtRetirement = path[accumulationYears - 1]?.endBalance || (accumulationYears === 0 ? portfolioResult.endingBalance : (path.length > 0 ? path[path.length - 1].endBalance : 0));
-            const dividendsAtRetirement = (path[accumulationYears]?.startBalance || 0) * hist_dividend_yield;
-            return { path, endingBalance: path[path.length - 1].endBalance, balanceAtRetirement: balanceAtRetirement, dividendsAtRetirement: dividendsAtRetirement, dividendYieldAtRetirement: hist_dividend_yield };
-        };
-        return {
-            good: calculatePathMetrics(getPercentilePath(0.9)),
-            median: calculatePathMetrics(getPercentilePath(0.5)),
-            poor: calculatePathMetrics(getPercentilePath(0.1)),
-            successRate: 1 - (failures / simulations)
-        };
-    }
+    function calculateDeterministicProjection(portfolioResult, params) { const { accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, goal } = params; const hist_cagr = portfolioResult.annualReturn; const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0; let value = portfolioResult.endingBalance; const path = []; let annualContribution = initialContribution; for (let y = 0; y < accumulationYears; y++) { const startOfYearValue = value; value += annualContribution; value *= (1 + hist_cagr); path.push({ year: y + 1, startBalance: startOfYearValue, contributions: annualContribution, dividends: startOfYearValue * hist_dividend_yield, withdrawals: 0, salesNeeded: 0, endBalance: value }); annualContribution *= (1 + contributionIncrease); } const balanceAtRetirement = value; if (goal === 'retire') { for (let y = 0; y < decumulationYears; y++) { if (value <= 0) { path.push({ year: accumulationYears + y + 1, startBalance: 0, contributions: 0, dividends: 0, withdrawals: 0, salesNeeded: 0, endBalance: 0 }); continue; } const startOfYearValue = value; const dividendsGenerated = startOfYearValue * hist_dividend_yield; let currentWithdrawal = 0; if (withdrawalStrategy === 'dividends') { currentWithdrawal = dividendsGenerated; } else if (withdrawalStrategy === 'percentage') { currentWithdrawal = startOfYearValue * withdrawalRate; } else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; } value -= currentWithdrawal; if (value > 0) { value *= (1 + hist_cagr); } if (value < 0) value = 0; path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, contributions: 0, dividends: dividendsGenerated, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - dividendsGenerated), endBalance: value }); } } const endingBalance = path.length > 0 ? path[path.length - 1].endBalance : portfolioResult.endingBalance; const dividendsAtRetirement = (path[accumulationYears]?.startBalance || 0) * hist_dividend_yield; return { path, endingBalance, balanceAtRetirement, dividendsAtRetirement, dividendYieldAtRetirement: hist_dividend_yield }; }
+    function calculateMonteCarloProjection(portfolioResult, params) { const { simulations, accumulationYears, decumulationYears, initialContribution, contributionIncrease, withdrawalStrategy, withdrawalRate, withdrawalAmount, goal } = params; const hist_cagr = portfolioResult.annualReturn; const hist_volatility = portfolioResult.volatility; const hist_dividend_yield = (portfolioResult.incomeLast12Mo / portfolioResult.endingBalance) || 0; const total_arithmetic_mean = hist_cagr + (Math.pow(hist_volatility, 2) / 2); const drift = total_arithmetic_mean - (Math.pow(hist_volatility, 2) / 2); const yearPaths = []; let failures = 0; for (let i = 0; i < simulations; i++) { let value = portfolioResult.endingBalance; const path = []; let annualContribution = initialContribution; for (let y = 0; y < accumulationYears; y++) { const startOfYearValue = value; value += annualContribution; value *= Math.exp(generateRandomReturn(drift, hist_volatility)); if (!isFinite(value) || value < 0) { value = 0; break; } path.push({ year: y + 1, startBalance: startOfYearValue, contributions: annualContribution, dividends: startOfYearValue * hist_dividend_yield, withdrawals: 0, salesNeeded: 0, endBalance: value }); annualContribution *= (1 + contributionIncrease); } if (goal === 'retire') { for (let y = 0; y < decumulationYears; y++) { if (value <= 0) { path.push({ year: accumulationYears + y + 1, startBalance: 0, contributions: 0, dividends: 0, withdrawals: 0, salesNeeded: 0, endBalance: 0 }); continue; } const startOfYearValue = value; const dividendsGenerated = startOfYearValue * hist_dividend_yield; let currentWithdrawal = 0; if (withdrawalStrategy === 'dividends') { currentWithdrawal = dividendsGenerated; } else if (withdrawalStrategy === 'percentage') { currentWithdrawal = startOfYearValue * withdrawalRate; } else if (withdrawalStrategy === 'fixed_amount') { currentWithdrawal = withdrawalAmount; } value -= currentWithdrawal; if (value > 0) { value *= Math.exp(generateRandomReturn(drift, hist_volatility)); } if (!isFinite(value) || value < 0) { value = 0; } path.push({ year: accumulationYears + y + 1, startBalance: startOfYearValue, contributions: 0, dividends: dividendsGenerated, withdrawals: currentWithdrawal, salesNeeded: Math.max(0, currentWithdrawal - dividendsGenerated), endBalance: value }); } } if (goal === 'retire' && path.length > 0 && path[path.length - 1].endBalance <= 0) { failures++; } yearPaths.push(path); } const getPercentilePath = (percentile) => { const sortedPaths = yearPaths.sort((a,b) => { const aEnd = a.length > 0 ? a[a.length-1].endBalance : 0; const bEnd = b.length > 0 ? b[b.length-1].endBalance : 0; return aEnd - bEnd; }); return sortedPaths[Math.floor(simulations * percentile)] || []; }; const calculatePathMetrics = (path) => { if (!path || path.length === 0) return { path: [], endingBalance: 0, balanceAtRetirement: 0, dividendsAtRetirement: 0, dividendYieldAtRetirement: 0 }; const balanceAtRetirement = path[accumulationYears - 1]?.endBalance || (accumulationYears === 0 ? portfolioResult.endingBalance : (path.length > 0 ? path[path.length - 1].endBalance : 0)); const dividendsAtRetirement = (path[accumulationYears]?.startBalance || 0) * hist_dividend_yield; return { path, endingBalance: path[path.length - 1].endBalance, balanceAtRetirement: balanceAtRetirement, dividendsAtRetirement: dividendsAtRetirement, dividendYieldAtRetirement: hist_dividend_yield }; }; return { good: calculatePathMetrics(getPercentilePath(0.9)), median: calculatePathMetrics(getPercentilePath(0.5)), poor: calculatePathMetrics(getPercentilePath(0.1)), successRate: 1 - (failures / simulations) }; }
 
     // --- UI Rendering ---
-    function formatNumber(num, type, decimals = 1) {
-        if (num === null || typeof num === 'undefined' || isNaN(num)) return 'N/A';
-        if (type === 'currency') return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-        if (type === 'percent') return (num * 100).toFixed(decimals) + ' %';
-        if (type === 'decimal') return num.toFixed(2);
-        return num.toLocaleString();
-    }
-
+    function formatNumber(num, type, decimals = 1) { if (num === null || typeof num === 'undefined' || isNaN(num)) return 'N/A'; if (type === 'currency') return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); if (type === 'percent') return (num * 100).toFixed(decimals) + ' %'; if (type === 'decimal') return num.toFixed(2); return num.toLocaleString(); }
     function renderResults(results, primaryBenchmarkTicker) {
         const portfolioNames = results.map(r => r.portfolio.name);
         
         function createTable(containerId, metrics) {
             const container = document.getElementById(containerId);
             container.innerHTML = ''; 
-
             const table = document.createElement('table');
             const thead = table.createTHead();
             const tbody = table.createTBody();
             const headerRow = thead.insertRow();
-
-            const thMetric = document.createElement('th');
-            thMetric.textContent = 'Metric';
-            headerRow.appendChild(thMetric);
-
-            portfolioNames.forEach(name => {
-                const th = document.createElement('th');
-                th.textContent = name;
-                headerRow.appendChild(th);
-            });
-
+            headerRow.insertCell().outerHTML = '<th>Metric</th>';
+            portfolioNames.forEach(name => { headerRow.insertCell().outerHTML = `<th>${name}</th>`; });
             metrics.forEach(metric => {
                 const tr = tbody.insertRow();
                 const tdMetric = tr.insertCell();
-                
                 tdMetric.innerHTML = `${metric.label} <span class="help-icon" data-tooltip="${metric.help}">?</span>`;
-
                 results.forEach(r => {
                     const td = tr.insertCell();
                     if(metric.id) td.id = `${metric.id}-${r.portfolio.id}`;
@@ -632,311 +521,46 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
             });
             container.appendChild(table);
+            const tableContainer = document.getElementById(containerId);
+            if (tableContainer.scrollWidth > tableContainer.clientWidth) {
+                tableContainer.classList.add('is-scrolling');
+            }
+            tableContainer.addEventListener('scroll', () => {
+                tableContainer.classList.toggle('is-scrolling', tableContainer.scrollLeft > 0);
+            });
         }
 
-        createTable('snapshot-table-container', [
-            { label: 'Starting Balance', help: 'How much the portfolio was worth on the very first day of the back-test.', formatter: r => formatNumber(r.startingBalance, 'currency') },
-            { label: 'Contributions', help: 'Every extra dollar you deposited after day 1.', formatter: r => formatNumber(r.contributions, 'currency') },
-            { label: 'Total Invested', help: 'Starting Balance + Contributions – the full amount you put in.', formatter: r => formatNumber(r.totalInvested, 'currency') },
-            { label: 'Ending Balance', help: 'What the portfolio is worth on the last day of the test.', formatter: r => formatNumber(r.endingBalance, 'currency') },
-            { label: 'Total Return', help: 'Profit or loss since you started, shown in dollars and percent of Total Invested.', formatter: r => `${formatNumber(r.totalReturn, 'currency')} (${formatNumber(r.totalReturnPercent, 'percent')})`, class: r => r.totalReturn >= 0 ? 'positive' : 'negative' },
-            { label: 'Annual Return', help: 'The average yearly growth rate for this test period (also called CAGR).', formatter: r => formatNumber(r.annualReturn, 'percent'), class: r => r.annualReturn >= 0 ? 'positive' : 'negative' },
-        ]);
-        createTable('allocation-table-container', [ 
-            { label: 'Stocks', help: 'Portion of the portfolio invested in stock funds or individual shares.', formatter: r => formatNumber(r.stockPercent, 'percent') }, 
-            { label: 'Bonds', help: 'Portion invested in bond or fixed-income funds.', formatter: r => formatNumber(r.bondPercent, 'percent') }, 
-            { label: 'Cash', help: 'Cash or cash-like positions (including money-market funds).', formatter: r => formatNumber(r.cashPercent, 'percent') },
-        ]);
-        createTable('income-table-container', [
-             { label: 'Total Dividends', help: 'Every dividend dollar the portfolio paid you since day 1.', formatter: r => formatNumber(r.cumulativeDividends, 'currency')},
-             { label: 'Income Last 12 Mo', help: 'Dividends received in the most recent 12-month stretch.', formatter: r => formatNumber(r.incomeLast12Mo, 'currency') },
-             { label: 'Yield on Cost', help: 'Income Last 12 Mo divided by Total Invested (your personal dividend rate).', formatter: r => formatNumber(r.yieldOnCost, 'percent') },
-             { label: 'Income Growth', help: 'Average yearly growth rate of your dividend income since the start.', formatter: r => formatNumber(r.incomeGrowth, 'percent'), class: r => r.incomeGrowth >= 0 ? 'positive' : 'negative' },
-        ]);
-        createTable('costs-table-container', [ 
-            { id: 'er', label: 'Expense Ratio', help: 'The weighted average yearly fee built into your funds.', formatter: () => `<div class="mini-loader"></div>` }, 
-            { id: 'to', label: 'Turnover', help: 'Roughly what percent of the portfolio is bought or sold each year; higher can mean more hidden costs.', formatter: () => `<div class="mini-loader"></div>` }, 
-            { label: 'Tax Drag (Dividends)', help: 'Annualized return lost to taxes on dividends. Does not include capital gains from rebalancing.', formatter: r => formatNumber(r.taxDrag, 'percent', 2), class: r => (r.taxDrag > 0 ? 'negative' : '') }, 
-        ]);
-        createTable('risk-table-container', [
-            { label: 'Volatility', help: 'Typical size of month-to-month ups and downs; bigger means a bumpier ride.', formatter: r => formatNumber(r.volatility, 'percent') },
-            { label: 'Downside Volatility', help: 'Same idea, but it only counts the down months.', formatter: r => formatNumber(r.downsideVol, 'percent') },
-            { label: 'Sharpe Ratio', help: 'Extra return earned for each unit of overall volatility (higher is better).', formatter: r => formatNumber(r.sharpeRatio, 'decimal') },
-            { label: 'Sortino Ratio', help: 'Extra return earned for each unit of downside volatility.', formatter: r => formatNumber(r.sortinoRatio, 'decimal') },
-            { label: `Beta (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's volatility relative to the benchmark (${primaryBenchmarkTicker}). A Beta of 1.1 means it's 10% more volatile than the benchmark.`, formatter: r => r.beta !== null ? formatNumber(r.beta, 'decimal') : (r.portfolio.name === primaryBenchmarkTicker ? '1.00' : 'N/A') },
-            { label: `Alpha (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's ability to outperform the market. A positive Alpha means it performed better than its benchmark, considering the risk it took.`, formatter: r => r.alpha !== null ? formatNumber(r.alpha, 'percent') : (r.portfolio.name === primaryBenchmarkTicker ? formatNumber(0, 'percent') : 'N/A'), class: r => r.alpha !== null ? (r.alpha >= 0 ? 'positive' : 'negative') : '' },
-            { label: 'Best Year', help: 'The highest return achieved in any 12-month period during the test.', formatter: r => formatNumber(r.bestYear, 'percent'), class: () => 'positive' },
-            { label: 'Worst Year', help: 'The lowest return achieved in any 12-month period during the test.', formatter: r => formatNumber(r.worstYear, 'percent'), class: () => 'negative' },
-        ]);
+        createTable('snapshot-table-container', [ { label: 'Starting Balance', help: 'How much the portfolio was worth on the very first day of the back-test.', formatter: r => formatNumber(r.startingBalance, 'currency') }, { label: 'Contributions', help: 'Every extra dollar you deposited after day 1.', formatter: r => formatNumber(r.contributions, 'currency') }, { label: 'Total Invested', help: 'Starting Balance + Contributions – the full amount you put in.', formatter: r => formatNumber(r.totalInvested, 'currency') }, { label: 'Ending Balance', help: 'What the portfolio is worth on the last day of the test.', formatter: r => formatNumber(r.endingBalance, 'currency') }, { label: 'Total Return', help: 'Profit or loss since you started, shown in dollars and percent of Total Invested.', formatter: r => `${formatNumber(r.totalReturn, 'currency')} (${formatNumber(r.totalReturnPercent, 'percent')})`, class: r => r.totalReturn >= 0 ? 'positive' : 'negative' }, { label: 'Annual Return', help: 'The average yearly growth rate for this test period (also called CAGR).', formatter: r => formatNumber(r.annualReturn, 'percent'), class: r => r.annualReturn >= 0 ? 'positive' : 'negative' }, ]);
+        createTable('allocation-table-container', [ { label: 'Stocks', help: 'Portion of the portfolio invested in stock funds or individual shares.', formatter: r => formatNumber(r.stockPercent, 'percent') }, { label: 'Bonds', help: 'Portion invested in bond or fixed-income funds.', formatter: r => formatNumber(r.bondPercent, 'percent') }, { label: 'Cash', help: 'Cash or cash-like positions (including money-market funds).', formatter: r => formatNumber(r.cashPercent, 'percent') }, ]);
+        createTable('income-table-container', [ { label: 'Total Dividends', help: 'Every dividend dollar the portfolio paid you since day 1.', formatter: r => formatNumber(r.cumulativeDividends, 'currency')}, { label: 'Income Last 12 Mo', help: 'Dividends received in the most recent 12-month stretch.', formatter: r => formatNumber(r.incomeLast12Mo, 'currency') }, { label: 'Yield on Cost', help: 'Income Last 12 Mo divided by Total Invested (your personal dividend rate).', formatter: r => formatNumber(r.yieldOnCost, 'percent') }, { label: 'Income Growth', help: 'Average yearly growth rate of your dividend income since the start.', formatter: r => formatNumber(r.incomeGrowth, 'percent'), class: r => r.incomeGrowth >= 0 ? 'positive' : 'negative' }, ]);
+        createTable('costs-table-container', [ { id: 'er', label: 'Expense Ratio', help: 'The weighted average yearly fee built into your funds.', formatter: () => `<div class="loader" style="display:inline-block; width: 16px; height: 16px; border-width: 2px;"></div>` }, { id: 'to', label: 'Turnover', help: 'Roughly what percent of the portfolio is bought or sold each year; higher can mean more hidden costs.', formatter: () => `<div class="loader" style="display:inline-block; width: 16px; height: 16px; border-width: 2px;"></div>` }, { label: 'Tax Drag (Dividends)', help: 'Annualized return lost to taxes on dividends. Does not include capital gains from rebalancing.', formatter: r => formatNumber(r.taxDrag, 'percent', 2), class: r => (r.taxDrag > 0 ? 'negative' : '') }, ]);
+        createTable('risk-table-container', [ { label: 'Volatility', help: 'Typical size of month-to-month ups and downs; bigger means a bumpier ride.', formatter: r => formatNumber(r.volatility, 'percent') }, { label: 'Downside Volatility', help: 'Same idea, but it only counts the down months.', formatter: r => formatNumber(r.downsideVol, 'percent') }, { label: 'Sharpe Ratio', help: 'Extra return earned for each unit of overall volatility (higher is better).', formatter: r => formatNumber(r.sharpeRatio, 'decimal') }, { label: 'Sortino Ratio', help: 'Extra return earned for each unit of downside volatility.', formatter: r => formatNumber(r.sortinoRatio, 'decimal') }, { label: `Beta (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's volatility relative to the benchmark (${primaryBenchmarkTicker}). A Beta of 1.1 means it's 10% more volatile than the benchmark.`, formatter: r => r.beta !== null ? formatNumber(r.beta, 'decimal') : (r.portfolio.name === primaryBenchmarkTicker ? '1.00' : 'N/A') }, { label: `Alpha (vs. ${primaryBenchmarkTicker})`, help: `Measures the portfolio's ability to outperform the market. A positive Alpha means it performed better than its benchmark, considering the risk it took.`, formatter: r => r.alpha !== null ? formatNumber(r.alpha, 'percent') : (r.portfolio.name === primaryBenchmarkTicker ? formatNumber(0, 'percent') : 'N/A'), class: r => r.alpha !== null ? (r.alpha >= 0 ? 'positive' : 'negative') : '' }, { label: 'Best Year', help: 'The highest return achieved in any 12-month period during the test.', formatter: r => formatNumber(r.bestYear, 'percent'), class: () => 'positive' }, { label: 'Worst Year', help: 'The lowest return achieved in any 12-month period during the test.', formatter: r => formatNumber(r.worstYear, 'percent'), class: () => 'negative' }, ]);
         createTable('drawdown-table-container', [ { label: 'Worst Drop', help: 'The worst percentage fall from a high point to a low point during the test.', formatter: r => formatNumber(r.maxDrawdown, 'percent'), class: () => 'negative' }, { label: 'Drop Now', help: 'How far below its most recent high the portfolio is today.', formatter: r => formatNumber(r.dropNow, 'percent'), class: () => 'negative' }, { label: 'Longest Recovery', help: 'Most days it took to climb from a low back to a new high.', formatter: r => formatNumber(r.longestRecovery, 'days') }, ]);
         createTable('consistency-table-container', [ { label: 'Winning Months', help: 'Percent of months that finished higher than they started.', formatter: r => formatNumber(r.winningMonths, 'percent') }, { label: 'Winning Streak', help: 'Longest run of consecutive winning months.', formatter: r => formatNumber(r.winningStreak, 'months') }, { label: 'Losing Streak', help: 'Longest run of consecutive losing months.', formatter: r => formatNumber(r.losingStreak, 'months') }, ]);
         
         const holdingsTablesContainer = document.getElementById('holdings-tables-container');
         holdingsTablesContainer.innerHTML = '';
-
         results.filter(r => r.breakdown).forEach(r => {
             const portfolioHeader = document.createElement('h3');
             portfolioHeader.textContent = r.portfolio.name;
-            portfolioHeader.style.marginTop = '20px';
             holdingsTablesContainer.appendChild(portfolioHeader);
-
             const tableContainer = document.createElement('div');
             tableContainer.className = 'table-container';
-            
-            const table = document.createElement('table');
-            const thead = table.createTHead();
-            const tbody = table.createTBody();
-            const headerRow = thead.insertRow();
-            ['Ticker', 'Inception', 'Target %', 'Shares', 'Start $', 'End $', 'Drift %'].forEach((text, i) => {
-                const th = document.createElement('th');
-                th.textContent = text;
-                if (i === 0) th.style.textAlign = 'left';
-                headerRow.appendChild(th);
-            });
-
-            r.breakdown.forEach(t => {
-                const row = tbody.insertRow();
-                row.insertCell().textContent = t.symbol;
-                row.insertCell().textContent = t.inceptionDate;
-                row.insertCell().textContent = formatNumber(t.allocation / 100, 'percent', 1);
-                row.insertCell().textContent = t.shares.toFixed(2);
-                row.insertCell().textContent = formatNumber(t.valueStart, 'currency');
-                row.insertCell().textContent = formatNumber(t.valueEnd, 'currency');
-                const driftCell = row.insertCell();
-                driftCell.textContent = `${t.drift.toFixed(1)} %`;
-                driftCell.className = t.drift >= 0 ? 'positive' : 'negative';
-            });
-            tableContainer.appendChild(table);
+            tableContainer.innerHTML = `<table><thead><tr><th>Ticker</th><th>Inception</th><th>Target %</th><th>Shares</th><th>Start $</th><th>End $</th><th>Drift %</th></tr></thead><tbody>${r.breakdown.map(t => `<tr><td>${t.symbol}</td><td>${t.inceptionDate}</td><td>${formatNumber(t.allocation / 100, 'percent', 1)}</td><td>${t.shares.toFixed(2)}</td><td>${formatNumber(t.valueStart, 'currency')}</td><td>${formatNumber(t.valueEnd, 'currency')}</td><td class="${t.drift >= 0 ? 'positive' : 'negative'}">${t.drift.toFixed(1)} %</td></tr>`).join('')}</tbody></table>`;
             holdingsTablesContainer.appendChild(tableContainer);
         });
 
         ui.resultsArea.classList.remove('hidden');
         ui.projectionsArea.classList.remove('hidden');
-        ui.runProjectionsBtn.disabled = false;
         ui.resultsArea.scrollIntoView({ behavior: 'smooth' });
     }
 
-    function renderProjectionResults(projectionResults, params) {
-        ui.projectionsResultsArea.innerHTML = ''; 
-        const headers = ['Metric', ...projectionResults.map(r => r.name)];
-
-        const createTable = (title, metrics, tableClass = '') => {
-            const h3 = document.createElement('h3');
-            h3.textContent = title;
-            ui.projectionsResultsArea.appendChild(h3);
-            const tableContainer = document.createElement('div');
-            tableContainer.className = 'table-container';
-            const table = document.createElement('table');
-            if (tableClass) table.className = tableClass;
-            const thead = table.createTHead(); const tbody = table.createTBody();
-            const headerRow = thead.insertRow();
-            headers.forEach(h => { headerRow.insertCell().outerHTML = `<th>${h}</th>`; });
-            metrics.forEach(metric => {
-                const row = tbody.insertRow();
-                row.insertCell().textContent = metric.label;
-                projectionResults.forEach(r => {
-                    const cell = row.insertCell();
-                    cell.textContent = metric.formatter(r);
-                });
-            });
-            tableContainer.appendChild(table);
-            ui.projectionsResultsArea.appendChild(tableContainer);
-        };
-
-        createTable('Monte Carlo Simulation Outcomes', [
-            { label: 'Best Outcome (90th Percentile)', formatter: r => formatNumber(r.monteCarlo.good.endingBalance, 'currency') },
-            { label: 'Median Outcome (50th Percentile)', formatter: r => formatNumber(r.monteCarlo.median.endingBalance, 'currency') },
-            { label: 'Poor Outcome (10th Percentile)', formatter: r => formatNumber(r.monteCarlo.poor.endingBalance, 'currency') }
-        ]);
-
-        createTable('Deterministic Projection (for comparison)', [
-            { label: 'Simple CAGR Projection', formatter: r => formatNumber(r.deterministic.endingBalance, 'currency') }
-        ]);
-        
-        const detailsContainer = document.createElement('div');
-        detailsContainer.id = 'projection-details-container';
-        ui.projectionsResultsArea.appendChild(detailsContainer);
-        const detailsHeader = document.createElement('h3');
-        detailsHeader.textContent = 'Scenario Details';
-        detailsContainer.appendChild(detailsHeader);
-        const navContainer = document.createElement('div');
-        navContainer.className = 'projection-detail-nav';
-        const selectLabel = document.createElement('label');
-        selectLabel.htmlFor = 'portfolio-selector';
-        selectLabel.id = 'portfolio-selector-label';
-        selectLabel.textContent = 'Portfolio:';
-        const selectWrapper = document.createElement('div');
-        selectWrapper.className = 'select-wrapper';
-        const portfolioSelect = document.createElement('select');
-        portfolioSelect.id = 'portfolio-selector';
-        selectWrapper.appendChild(portfolioSelect);
-        navContainer.appendChild(selectLabel);
-        navContainer.appendChild(selectWrapper);
-        detailsContainer.appendChild(navContainer);
-        const contentContainer = document.createElement('div');
-        detailsContainer.appendChild(contentContainer);
-        projectionResults.forEach((r, index) => {
-            const option = document.createElement('option');
-            option.value = r.name;
-            option.textContent = r.name;
-            portfolioSelect.appendChild(option);
-            const detailView = createDetailView(r, params);
-            detailView.id = `detail-${r.name.replace(/\s+/g, '-')}`;
-            if (index > 0) detailView.classList.add('hidden');
-            contentContainer.appendChild(detailView);
-        });
-        portfolioSelect.addEventListener('change', e => {
-            contentContainer.querySelectorAll('.detail-view').forEach(v => v.classList.add('hidden'));
-            document.getElementById(`detail-${e.target.value.replace(/\s+/g, '-')}`).classList.remove('hidden');
-        });
-    }
-
-    function createDetailView(result, params) {
-        const container = document.createElement('div');
-        container.className = 'detail-view';
-        
-        const deterministicData = result.deterministic;
-        const deterministicContent = document.createElement('div');
-        const deterministicHeader = document.createElement('h4');
-        deterministicHeader.textContent = 'CAGR Projection Details (Baseline)';
-        deterministicHeader.style.marginTop = '15px';
-        deterministicContent.appendChild(deterministicHeader);
-        const detTable = document.createElement('table');
-        detTable.className = 'snapshot-table';
-        const detTbody = detTable.createTBody();
-        const detMetrics = [ { label: 'Ending Balance', value: formatNumber(deterministicData.endingBalance, 'currency') } ];
-        if (params.goal === 'retire') {
-            detMetrics.push({ label: 'Balance @ Retirement', value: formatNumber(deterministicData.balanceAtRetirement, 'currency') });
-            detMetrics.push({ label: 'Dividends @ Retirement', value: formatNumber(deterministicData.dividendsAtRetirement, 'currency') });
-        }
-        detMetrics.forEach(m => {
-            const row = detTbody.insertRow();
-            row.insertCell().textContent = m.label;
-            row.insertCell().textContent = m.value;
-        });
-        deterministicContent.appendChild(detTable);
-        container.appendChild(deterministicContent);
-
-        const scenarioTabs = document.createElement('div');
-        scenarioTabs.className = 'scenario-tabs';
-        const mcHeader = document.createElement('h4');
-        mcHeader.textContent = 'Monte Carlo Scenario Details';
-        mcHeader.style.marginTop = '25px';
-        mcHeader.style.textAlign = 'center';
-        mcHeader.style.borderTop = '1px solid var(--border-color)';
-        mcHeader.style.paddingTop = '20px';
-        container.appendChild(mcHeader);
-        container.appendChild(scenarioTabs);
-        
-        const scenarios = ['Best (90th)', 'Middle (50th)', 'Worst (10th)'];
-        const scenarioKeys = ['good', 'median', 'poor'];
-        scenarios.forEach((s, i) => {
-            const tab = document.createElement('button');
-            tab.className = `scenario-tab ${i === 1 ? 'active' : ''}`;
-            tab.dataset.scenarioKey = scenarioKeys[i];
-            tab.textContent = s;
-            scenarioTabs.appendChild(tab);
-        });
-        
-        const scenarioContent = document.createElement('div');
-        container.appendChild(scenarioContent);
-
-        const createScenarioContent = (key) => {
-            const data = result.monteCarlo[key];
-            const content = document.createElement('div');
-            const hasPathData = data.path && data.path.length > 0;
-            const yearTableContainer = document.createElement('div');
-            yearTableContainer.className = 'table-container';
-            const yearTable = document.createElement('table');
-            const yThead = yearTable.createTHead(); const yTbody = yearTable.createTBody();
-            const yHeadRow = yThead.insertRow();
-            const isRetireGoal = params.goal === 'retire';
-            const headers = isRetireGoal ? ['Year', 'Start', 'Contrib', 'Dividends', 'Withdrawals', 'Sales Needed', 'End'] : ['Year', 'Start', 'Contrib', 'Dividends', 'End'];
-            headers.forEach(h => { yHeadRow.insertCell().outerHTML = `<th>${h}</th>`; });
-            if (hasPathData) {
-                data.path.forEach((yearData, index) => {
-                    const row = yTbody.insertRow();
-                    row.insertCell().textContent = yearData.year;
-                    row.insertCell().textContent = formatNumber(yearData.startBalance, 'currency');
-                    row.insertCell().textContent = formatNumber(yearData.contributions, 'currency');
-                    row.insertCell().textContent = formatNumber(yearData.dividends, 'currency');
-                    if (isRetireGoal) {
-                        row.insertCell().textContent = formatNumber(yearData.withdrawals, 'currency');
-                        row.insertCell().textContent = formatNumber(yearData.salesNeeded, 'currency');
-                    }
-                    row.insertCell().textContent = formatNumber(yearData.endBalance, 'currency');
-                    if(index > 4) row.classList.add('hidden', 'extra-year-row');
-                });
-            }
-            yearTableContainer.appendChild(yearTable);
-            content.appendChild(yearTableContainer);
-            if(hasPathData && data.path.length > 5) {
-                const buttonWrapper = document.createElement('div');
-                buttonWrapper.className = 'button-wrapper';
-                const showMoreBtn = document.createElement('button');
-                showMoreBtn.className = 'toggle-year-btn add-btn';
-                showMoreBtn.textContent = `Show all ${data.path.length} years`;
-                buttonWrapper.appendChild(showMoreBtn);
-                content.appendChild(buttonWrapper);
-                showMoreBtn.addEventListener('click', () => {
-                    const rows = yearTable.querySelectorAll('.extra-year-row');
-                    const isHidden = rows.length > 0 && rows[0].classList.contains('hidden');
-                    rows.forEach(r => r.classList.toggle('hidden', !isHidden));
-                    showMoreBtn.textContent = isHidden ? 'Show fewer years' : `Show all ${data.path.length} years`;
-                });
-            }
-            return content;
-        };
-        
-        scenarioContent.appendChild(createScenarioContent('median'));
-        scenarioTabs.addEventListener('click', e => {
-            if (e.target.classList.contains('scenario-tab')) {
-                scenarioTabs.querySelectorAll('.scenario-tab').forEach(p => p.classList.remove('active'));
-                e.target.classList.add('active');
-                scenarioContent.innerHTML = '';
-                scenarioContent.appendChild(createScenarioContent(e.target.dataset.scenarioKey));
-            }
-        });
-        return container;
-    }
-
-    function renderProjectionChart(historicalData, projectionData, params) {
-        if (!window.Chart) { console.error("Chart.js is not loaded."); return; }
-        const ctx = document.getElementById('projection-chart').getContext('2d'); 
-        if (projectionChartInstance) { projectionChartInstance.destroy(); }
-        const colors = ['#007aff', '#34c759', '#ff9500', '#af52de', '#ff3b30', '#5856d6'];
-        const datasets = [];
-        historicalData.forEach((p, i) => { datasets.push({ label: `${p.portfolio.name} (Historical)`, data: p.dailyValues.map(d => ({x: new Date(d.date).valueOf(), y: d.value})), borderColor: colors[i % colors.length], borderWidth: 2.5, pointRadius: 0, tension: 0.1 }); });
-        projectionData.forEach((p, i) => {
-            const historicalEnd = historicalData.find(h => h.portfolio.name === p.name).dailyValues.slice(-1)[0];
-            const projectionStartDate = new Date(historicalEnd.date);
-            const getPath = (pathData) => {
-                if (!pathData || pathData.length === 0) return [];
-                const fullPath = [{x: projectionStartDate.valueOf(), y: pathData[0]?.startBalance || 0}];
-                pathData.forEach((val, j) => {
-                    fullPath.push({x: new Date(projectionStartDate.getFullYear()+j+1, projectionStartDate.getMonth(), projectionStartDate.getDate()).valueOf(), y: val.endBalance});
-                });
-                return fullPath;
-            };
-            datasets.push({ label: `${p.name} (CAGR Projection)`, data: getPath(p.deterministic.path), borderColor: colors[i % colors.length], borderWidth: 3, pointRadius: 0, tension: 0.4, fill: false });
-            datasets.push({ label: `${p.name} (Median Future)`, data: getPath(p.monteCarlo.median.path), borderColor: colors[i % colors.length], borderDash: [6, 3], borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false });
-            const goodPathData = getPath(p.monteCarlo.good.path);
-            const poorPathData = getPath(p.monteCarlo.poor.path);
-            const rangeData = poorPathData.concat(goodPathData.reverse());
-            datasets.push({ label: `${p.name} (Range of Outcomes)`, data: rangeData, borderColor: 'transparent', borderWidth: 0, pointRadius: 0, backgroundColor: colors[i % colors.length] + '1A', fill: 'origin'});
-        });
-        projectionChartInstance = new Chart(ctx, { type: 'line', data: { datasets: datasets }, options: { plugins: { legend: { labels: { filter: item => !item.text.includes('(Range of Outcomes)') } }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); }, label: function(context) { const label = context.dataset.label || ''; const value = formatNumber(context.parsed.y, 'currency'); return `${label}: ${value}`; } } } }, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { ticks: { callback: function(value) { return formatNumber(value, 'currency'); } } } } } });
-    }
+    function renderProjectionResults(projectionResults, params) { ui.projectionsResultsArea.innerHTML = ''; const headers = ['Metric', ...projectionResults.map(r => r.name)]; const createTable = (title, metrics, tableClass = '') => { const h3 = document.createElement('h3'); h3.textContent = title; ui.projectionsResultsArea.appendChild(h3); const tableContainer = document.createElement('div'); tableContainer.className = 'table-container'; const table = document.createElement('table'); if (tableClass) table.className = tableClass; const thead = table.createTHead(); const tbody = table.createTBody(); const headerRow = thead.insertRow(); headers.forEach(h => { headerRow.insertCell().outerHTML = `<th>${h}</th>`; }); metrics.forEach(metric => { const row = tbody.insertRow(); row.insertCell().textContent = metric.label; projectionResults.forEach(r => { const cell = row.insertCell(); cell.textContent = metric.formatter(r); }); }); tableContainer.appendChild(table); ui.projectionsResultsArea.appendChild(tableContainer); }; createTable('Monte Carlo Simulation Outcomes', [ { label: 'Best Outcome (90th Percentile)', formatter: r => formatNumber(r.monteCarlo.good.endingBalance, 'currency') }, { label: 'Median Outcome (50th Percentile)', formatter: r => formatNumber(r.monteCarlo.median.endingBalance, 'currency') }, { label: 'Poor Outcome (10th Percentile)', formatter: r => formatNumber(r.monteCarlo.poor.endingBalance, 'currency') } ]); createTable('Deterministic Projection (for comparison)', [ { label: 'Simple CAGR Projection', formatter: r => formatNumber(r.deterministic.endingBalance, 'currency') } ]); const detailsContainer = document.createElement('div'); detailsContainer.id = 'projection-details-container'; ui.projectionsResultsArea.appendChild(detailsContainer); const detailsHeader = document.createElement('h3'); detailsHeader.textContent = 'Scenario Details'; detailsContainer.appendChild(detailsHeader); const navContainer = document.createElement('div'); navContainer.className = 'projection-detail-nav'; const selectLabel = document.createElement('label'); selectLabel.htmlFor = 'portfolio-selector'; selectLabel.id = 'portfolio-selector-label'; selectLabel.textContent = 'Portfolio:'; const selectWrapper = document.createElement('div'); selectWrapper.className = 'select-wrapper'; const portfolioSelect = document.createElement('select'); portfolioSelect.id = 'portfolio-selector'; selectWrapper.appendChild(portfolioSelect); navContainer.appendChild(selectLabel); navContainer.appendChild(selectWrapper); detailsContainer.appendChild(navContainer); const contentContainer = document.createElement('div'); detailsContainer.appendChild(contentContainer); projectionResults.forEach((r, index) => { const option = document.createElement('option'); option.value = r.name; option.textContent = r.name; portfolioSelect.appendChild(option); const detailView = createDetailView(r, params); detailView.id = `detail-${r.name.replace(/\s+/g, '-')}`; if (index > 0) detailView.classList.add('hidden'); contentContainer.appendChild(detailView); }); portfolioSelect.addEventListener('change', e => { contentContainer.querySelectorAll('.detail-view').forEach(v => v.classList.add('hidden')); document.getElementById(`detail-${e.target.value.replace(/\s+/g, '-')}`).classList.remove('hidden'); }); }
+    function createDetailView(result, params) { const container = document.createElement('div'); container.className = 'detail-view'; const deterministicData = result.deterministic; const deterministicContent = document.createElement('div'); const deterministicHeader = document.createElement('h4'); deterministicHeader.textContent = 'CAGR Projection Details (Baseline)'; deterministicHeader.style.marginTop = '15px'; deterministicContent.appendChild(deterministicHeader); const detTable = document.createElement('table'); detTable.className = 'snapshot-table'; const detTbody = detTable.createTBody(); const detMetrics = [ { label: 'Ending Balance', value: formatNumber(deterministicData.endingBalance, 'currency') } ]; if (params.goal === 'retire') { detMetrics.push({ label: 'Balance @ Retirement', value: formatNumber(deterministicData.balanceAtRetirement, 'currency') }); detMetrics.push({ label: 'Dividends @ Retirement', value: formatNumber(deterministicData.dividendsAtRetirement, 'currency') }); } detMetrics.forEach(m => { const row = detTbody.insertRow(); row.insertCell().textContent = m.label; row.insertCell().textContent = m.value; }); deterministicContent.appendChild(detTable); container.appendChild(deterministicContent); const scenarioTabs = document.createElement('div'); scenarioTabs.className = 'scenario-tabs'; const mcHeader = document.createElement('h4'); mcHeader.textContent = 'Monte Carlo Scenario Details'; mcHeader.style.marginTop = '25px'; mcHeader.style.textAlign = 'center'; mcHeader.style.borderTop = '1px solid var(--border-color)'; mcHeader.style.paddingTop = '20px'; container.appendChild(mcHeader); container.appendChild(scenarioTabs); const scenarios = ['Best (90th)', 'Middle (50th)', 'Worst (10th)']; const scenarioKeys = ['good', 'median', 'poor']; scenarios.forEach((s, i) => { const tab = document.createElement('button'); tab.className = `scenario-tab ${i === 1 ? 'active' : ''}`; tab.dataset.scenarioKey = scenarioKeys[i]; tab.textContent = s; scenarioTabs.appendChild(tab); }); const scenarioContent = document.createElement('div'); container.appendChild(scenarioContent); const createScenarioContent = (key) => { const data = result.monteCarlo[key]; const content = document.createElement('div'); const hasPathData = data.path && data.path.length > 0; const yearTableContainer = document.createElement('div'); yearTableContainer.className = 'table-container'; const yearTable = document.createElement('table'); const yThead = yearTable.createTHead(); const yTbody = yearTable.createTBody(); const yHeadRow = yThead.insertRow(); const isRetireGoal = params.goal === 'retire'; const headers = isRetireGoal ? ['Year', 'Start', 'Contrib', 'Dividends', 'Withdrawals', 'Sales Needed', 'End'] : ['Year', 'Start', 'Contrib', 'Dividends', 'End']; headers.forEach(h => { yHeadRow.insertCell().outerHTML = `<th>${h}</th>`; }); if (hasPathData) { data.path.forEach((yearData, index) => { const row = yTbody.insertRow(); row.insertCell().textContent = yearData.year; row.insertCell().textContent = formatNumber(yearData.startBalance, 'currency'); row.insertCell().textContent = formatNumber(yearData.contributions, 'currency'); row.insertCell().textContent = formatNumber(yearData.dividends, 'currency'); if (isRetireGoal) { row.insertCell().textContent = formatNumber(yearData.withdrawals, 'currency'); row.insertCell().textContent = formatNumber(yearData.salesNeeded, 'currency'); } row.insertCell().textContent = formatNumber(yearData.endBalance, 'currency'); if(index > 4) row.classList.add('hidden', 'extra-year-row'); }); } yearTableContainer.appendChild(yearTable); content.appendChild(yearTableContainer); if(hasPathData && data.path.length > 5) { const buttonWrapper = document.createElement('div'); buttonWrapper.className = 'button-wrapper'; const showMoreBtn = document.createElement('button'); showMoreBtn.className = 'toggle-year-btn add-btn'; showMoreBtn.textContent = `Show all ${data.path.length} years`; buttonWrapper.appendChild(showMoreBtn); content.appendChild(buttonWrapper); showMoreBtn.addEventListener('click', () => { const rows = yearTable.querySelectorAll('.extra-year-row'); const isHidden = rows.length > 0 && rows[0].classList.contains('hidden'); rows.forEach(r => r.classList.toggle('hidden', !isHidden)); showMoreBtn.textContent = isHidden ? 'Show fewer years' : `Show all ${data.path.length} years`; }); } return content; }; scenarioContent.appendChild(createScenarioContent('median')); scenarioTabs.addEventListener('click', e => { if (e.target.classList.contains('scenario-tab')) { scenarioTabs.querySelectorAll('.scenario-tab').forEach(p => p.classList.remove('active')); e.target.classList.add('active'); scenarioContent.innerHTML = ''; scenarioContent.appendChild(createScenarioContent(e.target.dataset.scenarioKey)); } }); return container; }
+    function renderProjectionChart(historicalData, projectionData, params) { if (!window.Chart) { console.error("Chart.js is not loaded."); return; } const ctx = document.getElementById('projection-chart').getContext('2d'); if (projectionChartInstance) { projectionChartInstance.destroy(); } const colors = ['#007aff', '#34c759', '#ff9500', '#af52de', '#ff3b30', '#5856d6']; const datasets = []; historicalData.forEach((p, i) => { datasets.push({ label: `${p.portfolio.name} (Historical)`, data: p.dailyValues.map(d => ({x: new Date(d.date).valueOf(), y: d.value})), borderColor: colors[i % colors.length], borderWidth: 2.5, pointRadius: 0, tension: 0.1 }); }); projectionData.forEach((p, i) => { const historicalEnd = historicalData.find(h => h.portfolio.name === p.name).dailyValues.slice(-1)[0]; const projectionStartDate = new Date(historicalEnd.date); const getPath = (pathData) => { if (!pathData || pathData.length === 0) return []; const fullPath = [{x: projectionStartDate.valueOf(), y: pathData[0]?.startBalance || 0}]; pathData.forEach((val, j) => { fullPath.push({x: new Date(projectionStartDate.getFullYear()+j+1, projectionStartDate.getMonth(), projectionStartDate.getDate()).valueOf(), y: val.endBalance}); }); return fullPath; }; datasets.push({ label: `${p.name} (CAGR Projection)`, data: getPath(p.deterministic.path), borderColor: colors[i % colors.length], borderWidth: 3, pointRadius: 0, tension: 0.4, fill: false }); datasets.push({ label: `${p.name} (Median Future)`, data: getPath(p.monteCarlo.median.path), borderColor: colors[i % colors.length], borderDash: [6, 3], borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false }); const goodPathData = getPath(p.monteCarlo.good.path); const poorPathData = getPath(p.monteCarlo.poor.path); const rangeData = poorPathData.concat(goodPathData.reverse()); datasets.push({ label: `${p.name} (Range of Outcomes)`, data: rangeData, borderColor: 'transparent', borderWidth: 0, pointRadius: 0, backgroundColor: colors[i % colors.length] + '1A', fill: 'origin'}); }); projectionChartInstance = new Chart(ctx, { type: 'line', data: { datasets: datasets }, options: { plugins: { legend: { labels: { filter: item => !item.text.includes('(Range of Outcomes)') } }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function(context) { return new Date(context[0].parsed.x).toLocaleDateString(); }, label: function(context) { const label = context.dataset.label || ''; const value = formatNumber(context.parsed.y, 'currency'); return `${label}: ${value}`; } } } }, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { ticks: { callback: function(value) { return formatNumber(value, 'currency'); } } } } } }); }
     
     // --- Logging ---
-    function logToPage(message, isError = false, container) {
-        container.classList.remove('hidden');
-        const p = document.createElement('p');
-        p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-        if (isError) { p.style.color = 'var(--error-color)'; }
-        container.appendChild(p);
-        container.scrollTop = container.scrollHeight;
-    }
+    function logToPage(message, isError = false, container) { container.classList.remove('hidden'); const p = document.createElement('p'); p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`; if (isError) { p.style.color = 'var(--error-color)'; } container.appendChild(p); container.scrollTop = container.scrollHeight; }
 
     // --- Main Control Flow ---
     async function runBacktest() {
@@ -1053,7 +677,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 monteCarlo: calculateMonteCarloProjection(p, params),
                 deterministic: calculateDeterministicProjection(p, params)
             }));
-            ui.projectionWarningContainer.innerHTML = `<div class="info-box" style="background-color: var(--info-bg); border: 1px solid var(--info-border); color: var(--info-text); padding: 12px; border-radius: 8px;"><strong>Important:</strong> These simulations are based on the returns and volatility from the backtested period (${appState.backtestConfig.effectiveStartDate} to ${appState.backtestConfig.endDate}). This period's performance may not be representative of long-term market behavior.</div>`;
+            ui.projectionWarningContainer.innerHTML = `<div class="info-box"><strong>Important:</strong> These simulations are based on the returns and volatility from the backtested period (${appState.backtestConfig.effectiveStartDate} to ${appState.backtestConfig.endDate}). This period's performance may not be representative of long-term market behavior.</div>`;
             ui.projectionWarningContainer.classList.remove('hidden');
             renderProjectionResults(projectionResults, params);
             renderProjectionChart(portfoliosToProject, projectionResults, params);
