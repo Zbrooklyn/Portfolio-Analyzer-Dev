@@ -606,8 +606,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const effectiveStartDate = (latestInceptionDate > appState.backtestConfig.startDate) ? latestInceptionDate : appState.backtestConfig.startDate;
             if (effectiveStartDate !== appState.backtestConfig.startDate) infoMessages.push(`<strong>Note:</strong> Start date adjusted to ${effectiveStartDate}.`);
             if(infoMessages.length > 0) {
-                ui.infoContainer.innerHTML = `<ul class="info-box">${infoMessages.map(m => `<li>${m}</li>`).join('')}</ul>`;
-                ui.infoContainer.style.display = 'block';
+                ui.infoContainer.innerHTML = `<div class="info-box"><ul>${infoMessages.map(m => `<li>${m}</li>`).join('')}</ul></div>`;
+                ui.infoContainer.classList.remove('hidden');
             }
 
             const configForCalc = { ...appState.backtestConfig, startDate: effectiveStartDate };
