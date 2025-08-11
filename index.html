@@ -4,265 +4,238 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://corsproxy.io https://api.allorigins.win; img-src 'self' data:;">
-  <title>Portfolio Backtester v7.4.1 (UI Fix)</title>
+  <title>Portfolio Backtester v8.0 (UI Overhaul)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
   <script src="app.js" defer></script>
   <style>
     :root {
-      --primary-color: #007aff; --primary-hover: #005ecb; --border-color: #dee2e6;
-      --background-main: #f0f2f5; --background-card: #ffffff; --text-color: #212529;
-      --text-light: #6c757d; --error-color: #d93025; --green: #34c759; --red: #ff3b30;
-      --info-bg: #e7f3ff; --info-border: #90b8de; --info-text: #004085;
-      --warn-bg: #fff3cd; --warn-border: #ffeeba; --warn-text: #856404;
+      /* Color Palette */
+      --c-primary: #007aff; --c-primary-hover: #005ecb; --c-border: #dee2e6;
+      --c-bg-main: #f0f2f5; --c-bg-card: #ffffff; --c-bg-subtle: #f8f9fa;
+      --c-text-main: #212529; --c-text-light: #6c757d; --c-error: #d93025;
+      --c-success: #34c759; --c-danger: #ff3b30; --c-white: #ffffff;
+      /* Typography */
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --fs-base: 16px;
+      --fs-sm: 0.875rem; /* 14px */
+      --fs-xs: 0.75rem;  /* 12px */
+      --fs-lg: 1.125rem; /* 18px */
+      --fs-xl: 1.25rem;  /* 20px */
+      --fs-h1: clamp(1.75rem, 4vw, 2.25rem); /* Fluid H1 */
+      --fs-h2: clamp(1.25rem, 3vw, 1.5rem);  /* Fluid H2 */
+      /* Spacing Scale */
+      --space-xs: 0.25rem; /* 4px */
+      --space-sm: 0.5rem;  /* 8px */
+      --space-md: 1rem;    /* 16px */
+      --space-lg: 1.5rem;  /* 24px */
+      --space-xl: 2rem;    /* 32px */
+      /* Borders & Shadows */
+      --border-radius: 8px;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.07);
     }
+    *, *::before, *::after { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background-color: var(--background-main); color: var(--text-color); margin: 0; padding: 0 0 40px 0;
+      font-family: var(--font-sans); font-size: var(--fs-base);
+      background-color: var(--c-bg-main); color: var(--c-text-main);
+      margin: 0; padding-bottom: var(--space-xl);
     }
-    main { display: block; } /* For older browsers */
-    .app-container { max-width: 1200px; margin: 0 auto; padding: 10px; }
-    h1, h2, h3 { color: var(--text-color); }
-    h1 { font-size: 26px; margin-bottom: 5px; text-align: center; }
-    h2 { font-size: 20px; margin-top: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
-    h3 { font-size: 18px; margin-top: 25px; margin-bottom: -5px; }
-    .version { font-size: 14px; color: var(--text-light); margin-top: 0; margin-bottom: 20px; text-align: center; }
-    .section-card {
-      background: var(--background-card); border-radius: 10px; padding: 20px;
-      margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    }
-    .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
-    .control-group { display: flex; flex-direction: column; gap: 6px; }
-    .control-group label { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; }
-    .control-group input, .control-group select {
-      width: 100%; box-sizing: border-box; font-size: 15px; padding: 10px;
-      border-radius: 6px; border: 1px solid var(--border-color);
-    }
-    .help-icon {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 18px; height: 18px; border-radius: 50%; background-color: #e0e0e0;
-        color: #6c757d; font-size: 11px; font-weight: bold;
-        cursor: help; user-select: none; flex-shrink: 0;
-    }
-    #master-tooltip {
-        visibility: hidden; opacity: 0; transition: opacity 0.2s, visibility 0.2s;
-        position: fixed;
-        width: 260px; background-color: #343a40; color: #fff;
-        text-align: left; border-radius: 6px; padding: 10px;
-        z-index: 1000; pointer-events: none;
-        font-size: 13px; font-weight: 400; line-height: 1.5;
-    }
-    #portfolios-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
-    .portfolio-card { border: 1px solid transparent; border-radius: 8px; padding: 15px; background: #f8f9fa; }
-    .portfolio-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .portfolio-header input[type="text"] { font-size: 18px; font-weight: bold; border: none; background: transparent; padding: 5px; width: 70%; }
-    .remove-portfolio-btn { background: #e9ecef; color: var(--text-light); border: none; border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 12px; font-weight: 600; }
-    .ticker-input-row { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 8px; align-items: center; }
-    .ticker-input-row input { text-transform: uppercase; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; }
-    .remove-ticker-btn { background: transparent; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .remove-ticker-btn svg { width: 16px; height: 16px; }
+    main { display: block; }
+    .app-container { max-width: 1200px; margin: 0 auto; padding: var(--space-sm); }
+    h1, h2, h3 { color: var(--c-text-main); margin: 0; }
+    h1 { font-size: var(--fs-h1); margin-bottom: var(--space-xs); text-align: center; }
+    h2 { font-size: var(--fs-h2); padding-bottom: var(--space-md); border-bottom: 1px solid var(--c-border); }
+    h3 { font-size: var(--fs-lg); margin-top: var(--space-lg); }
+    .version { font-size: var(--fs-sm); color: var(--c-text-light); text-align: center; margin-bottom: var(--space-lg); }
     
-    .add-btn { background: var(--primary-color); color: white; border: none; border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 500; }
-    .btn-secondary { background-color: #fff; color: var(--text-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 500; }
-    .btn-secondary:hover { background-color: #f8f9fa; }
+    .card {
+      background: var(--c-bg-card); border-radius: var(--border-radius);
+      padding: var(--space-lg); margin-bottom: var(--space-lg);
+      box-shadow: var(--shadow-sm);
+    }
+    .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-md); }
+    .control-group { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .control-group label { font-weight: 600; font-size: var(--fs-sm); display: flex; align-items: center; gap: var(--space-sm); }
+    .form-control {
+      width: 100%; font-size: 1rem; padding: 0.75em 1em;
+      border-radius: var(--border-radius); border: 1px solid var(--c-border);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-control:focus { outline: none; border-color: var(--c-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 20%, transparent); }
     
-    .run-button-container { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 25px 0; }
-    #run-backtest-btn, #run-projections-btn { font-size: 16px; padding: 12px 30px; }
-    #run-backtest-btn:disabled, #run-projections-btn:disabled { background-color: #a0c3ff; cursor: not-allowed; }
-    .loader { display: none; width: 24px; height: 24px; border: 3px solid var(--primary-color); border-bottom-color: transparent; border-radius: 50%; animation: rotation 1s linear infinite; }
+    .btn { cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); font-weight: 500; font-size: var(--fs-sm); padding: var(--space-sm) var(--space-md); border-radius: var(--border-radius); text-decoration: none; transition: all 0.2s; }
+    .btn--primary { background-color: var(--c-primary); color: var(--c-white); border: 1px solid var(--c-primary); }
+    .btn--primary:hover { background-color: var(--c-primary-hover); }
+    .btn--primary:disabled { background-color: color-mix(in srgb, var(--c-primary) 50%, var(--c-bg-subtle)); border-color: transparent; cursor: not-allowed; }
+    .btn--secondary { background-color: var(--c-white); color: var(--c-text-main); border: 1px solid var(--c-border); }
+    .btn--secondary:hover { background-color: var(--c-bg-subtle); }
+    .btn--icon { padding: var(--space-sm); line-height: 1; }
+    .btn--icon svg { width: 16px; height: 16px; }
+    
+    .help-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: var(--c-bg-subtle); color: var(--c-text-light); border: 1px solid var(--c-border); font-size: var(--fs-xs); font-weight: bold; cursor: help; user-select: none; flex-shrink: 0; }
+    #master-tooltip { visibility: hidden; opacity: 0; transition: opacity 0.2s, visibility 0.2s; position: fixed; width: 260px; background-color: #343a40; color: #fff; text-align: left; border-radius: 6px; padding: 10px; z-index: 1000; pointer-events: none; font-size: 13px; line-height: 1.5; }
+    
+    #portfolios-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-md); }
+    .portfolio-card { border-radius: var(--border-radius); padding: var(--space-md); background: var(--c-bg-subtle); border: 1px solid var(--c-border); }
+    .portfolio-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); gap: var(--space-sm); }
+    .portfolio-name-input { font-size: var(--fs-lg); font-weight: bold; border: none; background: transparent; padding: var(--space-sm); width: 100%; border-radius: var(--border-radius); }
+    .portfolio-name-input:focus { background-color: var(--c-white); outline: 1px solid var(--c-border); }
+    .ticker-input-row { display: flex; gap: var(--space-sm); margin-bottom: var(--space-sm); align-items: center; }
+    .ticker-input { text-transform: uppercase; flex-grow: 1; }
+    .allocation-input { max-width: 80px; }
+    
+    .run-button-container { display: flex; justify-content: center; align-items: center; gap: var(--space-md); margin: var(--space-xl) 0; }
+    #run-backtest-btn, #run-projections-btn { font-size: 1rem; padding: var(--space-md) var(--space-xl); }
+    .loader { display: none; width: 24px; height: 24px; border: 3px solid var(--c-primary); border-bottom-color: transparent; border-radius: 50%; animation: rotation 1s linear infinite; }
     @keyframes rotation { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
-    #error-container { color: var(--error-color); text-align: center; font-weight: bold; margin: 15px auto; max-width: 600px; }
-    #info-container {
-        display: none; padding: 12px 18px; margin: -10px auto 20px auto; max-width: 1160px;
-        border-radius: 8px; text-align: left; font-size: 14px; font-weight: 500;
-        background-color: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text);
-    }
-    #info-container ul { margin: 0; padding-left: 20px; }
     
-    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 10px; margin-top: 15px; }
-    th, td { border: 1px solid var(--border-color); padding: 10px 12px; text-align: right; font-size: 14px; white-space: nowrap; vertical-align: middle; }
-    th { background: #e9ecef; font-weight: 600; text-align: center; }
-    td:first-child, th:first-child { text-align: left; font-weight: bold; white-space: normal; }
-    .positive { color: var(--green); } .negative { color: var(--red); }
+    .info-box, #error-container { padding: var(--space-md) var(--space-lg); margin: var(--space-md) auto; max-width: 1160px; border-radius: var(--border-radius); text-align: left; font-size: var(--fs-sm); font-weight: 500; }
+    #error-container { color: var(--c-error); text-align: center; }
+    .info-box { background-color: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
+    .info-box ul { margin: 0; padding-left: var(--space-lg); }
+    
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; position: relative; }
+    .table-container::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 30px; background: linear-gradient(to right, transparent, var(--c-bg-card)); pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+    .table-container.is-scrolling::after { opacity: 1; }
+    table { border-collapse: collapse; width: 100%; margin: var(--space-md) 0; }
+    th, td { border: 1px solid var(--c-border); padding: var(--space-sm) var(--space-md); text-align: right; font-size: var(--fs-sm); white-space: nowrap; vertical-align: middle; }
+    th { background: var(--c-bg-subtle); font-weight: 600; text-align: center; }
+    td:first-child, th:first-child { text-align: left; font-weight: bold; }
+    .positive { color: var(--c-success); } .negative { color: var(--c-danger); }
     .hidden { display: none; }
-    
-    table.snapshot-table { border: none; margin-top: 5px; }
-    table.snapshot-table th, table.snapshot-table td { border: none; border-bottom: 1px solid var(--border-color); padding: 12px 8px; }
-    table.snapshot-table tr:last-child td { border-bottom: none; }
-    
-    details > summary { cursor: pointer; font-size: 20px; font-weight: 600; list-style: revert; margin-bottom: -1px; }
-    details[open] > summary { margin-bottom: 15px; }
-    details .section-card-content { padding-top: 10px; }
-    
-    .phase-header { font-size: 16px; font-weight: 600; margin-top: 20px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e9ecef; }
-    .indented-settings { margin-top: 15px; margin-left: 20px; padding-left: 15px; border-left: 3px solid #e9ecef; }
-    .debug-log {
-      background-color: #2b2b2b; border: 1px solid #555; border-radius: 8px;
-      margin: 20px 0; padding: 15px; font-family: monospace; font-size: 13px;
-      color: #ccc; max-height: 250px; overflow-y: auto; white-space: pre-wrap;
-      line-height: 1.6;
-    }
-    .debug-log h4 { margin-top: 0; color: #eee; border-bottom: 1px solid #555; padding-bottom: 8px; }
-    .debug-log p { margin: 0 0 5px 0; }
-    footer {
-        text-align: center; font-size: 12px; color: var(--text-light);
-        margin: 40px auto 20px auto; padding: 20px; max-width: 800px;
-        border-top: 1px solid var(--border-color); line-height: 1.6;
-    }
-    
-    #projection-details-container { border-top: 1px solid var(--border-color); margin-top: 30px; padding-top: 10px; }
-    .projection-detail-nav { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
-    #portfolio-selector-label { font-size: 16px; font-weight: 600; flex-shrink: 0; }
-    
-    .select-wrapper {
-        position: relative; display: inline-block; width: 100%; max-width: 350px;
-        border-radius: 6px; background-color: white;
-    }
-    .select-wrapper:focus-within { outline: 2px solid var(--primary-color); outline-offset: 1px; }
-    .select-wrapper::after {
-        content: ''; position: absolute; top: 50%; right: 15px;
-        transform: translateY(-50%); width: 10px; height: 10px;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%236c757d'%3E%3Cpath d='M8 12L2 6h12z'/%3E%3C/svg%3E");
-        background-repeat: no-repeat; background-position: center; pointer-events: none;
-    }
-    #portfolio-selector {
-        appearance: none; -webkit-appearance: none; -moz-appearance: none;
-        width: 100%; padding: 10px 40px 10px 15px; border: 1px solid var(--border-color); border-radius: 6px;
-        background-color: transparent; font-size: 15px; font-weight: 500;
-        cursor: pointer; outline: none;
-    }
 
-    .scenario-tabs {
-        display: flex; justify-content: center; gap: 8px;
-        margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;
-    }
-    .scenario-tab {
-        padding: 6px 14px; border-radius: 6px;
-        border: 1px solid var(--border-color); background-color: #fff;
-        cursor: pointer; font-weight: 600;
-        color: var(--text-light); transition: all 0.2s; font-size: 14px;
-    }
-    .scenario-tab:hover { background-color: #e9ecef; }
-    .scenario-tab.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
-    .toggle-year-btn { font-size: 12px; padding: 6px 12px; margin-top: 5px; cursor: pointer; }
-    .button-wrapper { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 15px; }
+    details.card { padding: 0; overflow: hidden; }
+    details > summary { cursor: pointer; padding: var(--space-lg); list-style: none; display: flex; justify-content: space-between; align-items: center; }
+    details > summary::-webkit-details-marker { display: none; }
+    details > summary::after { content: '▼'; font-size: 0.8em; transform-origin: center; transition: transform 0.2s; }
+    details[open] > summary::after { transform: rotate(180deg); }
+    details .card__content { padding: 0 var(--space-lg) var(--space-lg); }
+    
+    footer { text-align: center; font-size: var(--fs-xs); color: var(--c-text-light); margin: var(--space-xl) auto; padding: var(--space-lg); max-width: 800px; border-top: 1px solid var(--c-border); line-height: 1.6; }
 
     @media (max-width: 768px) {
-      .app-container { padding: 5px; } .section-card { padding: 15px; }
-      h1 { font-size: 24px; } h2, details > summary { font-size: 20px; }
-      #setup-card .controls-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
-      #retire-settings .controls-grid, #grow-settings .controls-grid { grid-template-columns: 1fr; }
+      .app-container { padding: var(--space-xs); } .card { padding: var(--space-md); }
+      #setup-card .controls-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      #setup-card .controls-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <div id="master-tooltip"></div>
   <main class="app-container">
-    <h1>Portfolio Backtester</h1>
-    <p class="version">Version 7.4.1 (UI Fix)</p>
+    <header>
+      <h1>Portfolio Backtester</h1>
+      <p class="version">v8.0 (UI Overhaul)</p>
+    </header>
 
-    <!-- Content is identical to previous version, omitted for brevity -->
-    <div id="setup-card" class="section-card">
-      <h2>1. Backtest Setup</h2>
+    <div id="setup-card" class="card">
+      <h2 style="margin-bottom: var(--space-lg);">1. Backtest Setup</h2>
       <div class="controls-grid">
-        <div class="control-group"><label for="start-date">Start Date <span class="help-icon" data-tooltip="The first day included in the historical test period. The actual start may be adjusted if an asset was created after this date.">?</span></label><input type="date" id="start-date" value="2004-01-01"></div>
-        <div class="control-group"><label for="end-date">End Date <span class="help-icon" data-tooltip="The last day included in the historical test period.">?</span></label><input type="date" id="end-date"></div>
-        <div class="control-group"><label for="initial-investment">Initial Investment ($) <span class="help-icon" data-tooltip="The starting amount of money in your portfolio on the Start Date.">?</span></label><input type="number" id="initial-investment" value="100000"></div>
-        <div class="control-group"><label for="contribution-amount">Contribution Amount ($) <span class="help-icon" data-tooltip="The amount of new money you add to your portfolio at each interval.">?</span></label><input type="number" id="contribution-amount" value="400"></div>
-        <div class="control-group"><label for="contribution-frequency">Contribution Frequency <span class="help-icon" data-tooltip="How often you add new money to your portfolio.">?</span></label><select id="contribution-frequency"><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="none">None</option></select></div>
-        <div class="control-group"><label for="rebalance-frequency">Rebalance Frequency <span class="help-icon" data-tooltip="How often the portfolio is reset to its original target allocation. This involves selling winners and buying losers.">?</span></label><select id="rebalance-frequency"><option value="annually" selected>Annually</option><option value="quarterly">Quarterly</option><option value="never">Never</option></select></div>
-        <div class="control-group"><label for="reinvest-dividends">Reinvest Dividends? <span class="help-icon" data-tooltip="Choose whether cash from dividends is automatically used to buy more shares or held as cash.">?</span></label><select id="reinvest-dividends"><option value="true" selected>True</option><option value="false">False</option></select></div>
-        <div class="control-group"><label for="risk-free-rate">Risk-Free Rate (%) <span class="help-icon" data-tooltip="Used for Sharpe/Sortino ratios. The US 3-Month T-bill is the academic standard (e.g., ~4-5%). Defaulting to 0% is common for simplicity.">?</span></label><input type="number" id="risk-free-rate" value="0"></div>
-        <div class="control-group"><label for="dividend-tax-rate">Dividend Tax Rate (%) <span class="help-icon" data-tooltip="The tax rate applied to dividends received. Set to 0 for tax-advantaged accounts like an IRA or 401(k).">?</span></label><input type="number" id="dividend-tax-rate" value="0"></div>
-        <div class="control-group"><label for="gains-tax-rate">Capital Gains Tax (%) <span class="help-icon" data-tooltip="The tax rate applied to profits when assets are sold during rebalancing. Set to 0 for tax-advantaged accounts.">?</span></label><input type="number" id="gains-tax-rate" value="0"></div>
-        <div class="control-group"><label for="benchmark1">Benchmark 1 <span class="help-icon" data-tooltip="A market index (like SPY for the S&P 500) to compare your portfolio's performance against.">?</span></label><input type="text" id="benchmark1" value="SPY"></div>
-        <div class="control-group"><label for="benchmark2">Benchmark 2 <span class="help-icon" data-tooltip="A second market index to include for comparison.">?</span></label><input type="text" id="benchmark2" value="QQQ"></div>
+        <div class="control-group"><label for="start-date">Start Date <span class="help-icon" data-tooltip="The first day included in the historical test period. The actual start may be adjusted if an asset was created after this date.">?</span></label><input type="date" id="start-date" value="2004-01-01" class="form-control"></div>
+        <div class="control-group"><label for="end-date">End Date <span class="help-icon" data-tooltip="The last day included in the historical test period.">?</span></label><input type="date" id="end-date" class="form-control"></div>
+        <div class="control-group"><label for="initial-investment">Initial Investment ($) <span class="help-icon" data-tooltip="The starting amount of money in your portfolio on the Start Date.">?</span></label><input type="number" id="initial-investment" value="100000" class="form-control"></div>
+        <div class="control-group"><label for="contribution-amount">Contribution Amount ($) <span class="help-icon" data-tooltip="The amount of new money you add to your portfolio at each interval.">?</span></label><input type="number" id="contribution-amount" value="400" class="form-control"></div>
+        <div class="control-group"><label for="contribution-frequency">Contribution Frequency <span class="help-icon" data-tooltip="How often you add new money to your portfolio.">?</span></label><select id="contribution-frequency" class="form-control"><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="none">None</option></select></div>
+        <div class="control-group"><label for="rebalance-frequency">Rebalance Frequency <span class="help-icon" data-tooltip="How often the portfolio is reset to its original target allocation. This involves selling winners and buying losers.">?</span></label><select id="rebalance-frequency" class="form-control"><option value="annually" selected>Annually</option><option value="quarterly">Quarterly</option><option value="never">Never</option></select></div>
+        <div class="control-group"><label for="reinvest-dividends">Reinvest Dividends? <span class="help-icon" data-tooltip="Choose whether cash from dividends is automatically used to buy more shares or held as cash.">?</span></label><select id="reinvest-dividends" class="form-control"><option value="true" selected>True</option><option value="false">False</option></select></div>
+        <div class="control-group"><label for="risk-free-rate">Risk-Free Rate (%) <span class="help-icon" data-tooltip="Used for Sharpe/Sortino ratios. The US 3-Month T-bill is the academic standard (e.g., ~4-5%). Defaulting to 0% is common for simplicity.">?</span></label><input type="number" id="risk-free-rate" value="0" class="form-control"></div>
+        <div class="control-group"><label for="dividend-tax-rate">Dividend Tax Rate (%) <span class="help-icon" data-tooltip="The tax rate applied to dividends received. Set to 0 for tax-advantaged accounts like an IRA or 401(k).">?</span></label><input type="number" id="dividend-tax-rate" value="0" class="form-control"></div>
+        <div class="control-group"><label for="gains-tax-rate">Capital Gains Tax (%) <span class="help-icon" data-tooltip="The tax rate applied to profits when assets are sold during rebalancing. Set to 0 for tax-advantaged accounts.">?</span></label><input type="number" id="gains-tax-rate" value="0" class="form-control"></div>
+        <div class="control-group"><label for="benchmark1">Benchmark 1 <span class="help-icon" data-tooltip="A market index (like SPY for the S&P 500) to compare your portfolio's performance against.">?</span></label><input type="text" id="benchmark1" value="SPY" class="form-control"></div>
+        <div class="control-group"><label for="benchmark2">Benchmark 2 <span class="help-icon" data-tooltip="A second market index to include for comparison.">?</span></label><input type="text" id="benchmark2" value="QQQ" class="form-control"></div>
       </div>
     </div>
-    <div class="section-card">
-      <h2>2. Configure Portfolios</h2>
+
+    <div class="card">
+      <h2 style="margin-bottom: var(--space-lg);">2. Configure Portfolios</h2>
       <div id="portfolios-container"></div>
-      <button id="add-portfolio-btn" class="add-btn" style="margin-top: 15px;">+ Add Portfolio</button>
+      <button id="add-portfolio-btn" class="btn btn--primary" style="margin-top: 15px;">+ Add Portfolio</button>
     </div>
+
     <div class="run-button-container">
-        <button id="run-backtest-btn" class="add-btn">Run Backtest</button>
+        <button id="run-backtest-btn" class="btn btn--primary">Run Backtest</button>
         <div id="loader" class="loader"></div>
     </div>
     <div id="error-container"></div>
-    <div id="info-container"></div>
+    <div id="info-container" class="info-box hidden"></div>
     <div id="backtest-debug-container" class="debug-log hidden"><h4>Backtest Debug Log:</h4></div>
+
     <div id="results-area" class="hidden">
-      <div class="section-card" style="padding-bottom: 5px;"><h2>3. Backtest Results</h2></div>
-      <details class="section-card" open><summary>Capital Snapshot</summary><div id="snapshot-table-container" class="table-container section-card-content"></div></details>
-      <details class="section-card" open><summary>Risk & Volatility</summary><div id="risk-table-container" class="table-container section-card-content"></div></details>
-      <details class="section-card"><summary>Drawdowns</summary><div id="drawdown-table-container" class="table-container section-card-content"></div></details>
-      <details class="section-card"><summary>Asset Allocation</summary><div id="allocation-table-container" class="table-container section-card-content"></div></details>
-      <details class="section-card"><summary>Income & Yield</summary><div id="income-table-container" class="table-container section-card-content"></div></details>
-      <details class="section-card"><summary>Costs & Efficiency</summary><div id="costs-table-container" class="table-container section-card-content"></div></details>
-      <details class="section-card"><summary>Consistency</summary><div id="consistency-table-container" class="table-container section-card-content"></div></details>
-      <details class="section-card" open><summary>Holdings Breakdown</summary><div id="holdings-tables-container" class="section-card-content"></div></details>
+      <div class="card" style="padding-bottom: 5px;"><h2>3. Backtest Results</h2></div>
+      <details class="card" open><summary><h2>Capital Snapshot</h2></summary><div id="snapshot-table-container" class="card__content table-container"></div></details>
+      <details class="card" open><summary><h2>Risk & Volatility</h2></summary><div id="risk-table-container" class="card__content table-container"></div></details>
+      <details class="card"><summary><h2>Drawdowns</h2></summary><div id="drawdown-table-container" class="card__content table-container"></div></details>
+      <details class="card"><summary><h2>Asset Allocation</h2></summary><div id="allocation-table-container" class="card__content table-container"></div></details>
+      <details class="card"><summary><h2>Income & Yield</h2></summary><div id="income-table-container" class="card__content table-container"></div></details>
+      <details class="card"><summary><h2>Costs & Efficiency</h2></summary><div id="costs-table-container" class="card__content table-container"></div></details>
+      <details class="card"><summary><h2>Consistency</h2></summary><div id="consistency-table-container" class="card__content table-container"></div></details>
+      <details class="card" open><summary><h2>Holdings Breakdown</h2></summary><div id="holdings-tables-container" class="card__content"></div></details>
     </div>
-    <div id="projections-area" class="section-card hidden">
+
+    <div id="projections-area" class="card hidden">
         <h2>4. Future Projections</h2>
-        <div id="projection-warning-container" class="hidden" style="margin-bottom: 20px;"></div>
-        <div class="control-group" style="margin-bottom: 20px;">
-            <label for="projection-goal">What is your goal? <span class="help-icon" data-tooltip="Choose a goal. Projections use the historical return and volatility from the backtest as the baseline for the simulation.">?</span></label>
-            <select id="projection-goal">
-                <option value="grow" selected>Continue saving and grow my portfolio</option>
-                <option value="retire">Plan for a future retirement income</option>
-            </select>
-        </div>
-        <div class="control-group" style="margin-bottom: 20px;">
-            <label for="sim-quality">Simulation Quality <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy.">?</span></label>
-            <select id="sim-quality">
-                <option value="1000">Fast</option>
-                <option value="5000" selected>Recommended</option>
-                <option value="10000">High Precision</option>
-            </select>
-        </div>
-        <div id="grow-settings">
-            <div class="controls-grid">
-                <div class="control-group"><label for="grow-projection-period">Projection Period (Years) <span class="help-icon" data-tooltip="How many years into the future you want to simulate (1–100).">?</span></label><input type="number" id="grow-projection-period" value="10"></div>
-                <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="grow-inflation-rate" value="0"></div>
-                <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="grow-contribution-increase" value="0"></div>
+        <div id="projection-warning-container" class="info-box hidden"></div>
+        <div class="controls-grid" style="margin-top: var(--space-lg);">
+            <div class="control-group">
+                <label for="projection-goal">What is your goal? <span class="help-icon" data-tooltip="Choose a goal. Projections use the historical return and volatility from the backtest as the baseline for the simulation.">?</span></label>
+                <select id="projection-goal" class="form-control">
+                    <option value="grow" selected>Continue saving and grow my portfolio</option>
+                    <option value="retire">Plan for a future retirement income</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="sim-quality">Simulation Quality <span class="help-icon" data-tooltip="The number of possible future scenarios we will test. 'Recommended' offers a good balance of speed and accuracy.">?</span></label>
+                <select id="sim-quality" class="form-control">
+                    <option value="1000">Fast</option>
+                    <option value="5000" selected>Recommended</option>
+                    <option value="10000">High Precision</option>
+                </select>
             </div>
         </div>
-        <div id="retire-settings" class="hidden">
-            <div class="control-group" style="margin-bottom: 20px;"><label for="current-age">What is your current age? <span class="help-icon" data-tooltip="Your current age. This is used as the starting point for retirement projections.">?</span></label><input type="number" id="current-age" value="30"></div>
-            <div class="phase-header">Phase 1: Your Working Years (Saving)</div>
+        <div id="grow-settings" style="margin-top: var(--space-lg);">
             <div class="controls-grid">
-                 <div class="control-group"><label for="retirement-age">At what age do you want to retire? <span class="help-icon" data-tooltip="The age you plan to stop working and start drawing an income from your portfolio.">?</span></label><input type="number" id="retirement-age" value="65"></div>
-                 <div class="control-group"><label for="retire-contribution-increase">Annual Saving Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="retire-contribution-increase" value="0"></div>
+                <div class="control-group"><label for="grow-projection-period">Projection Period (Years) <span class="help-icon" data-tooltip="How many years into the future you want to simulate (1–100).">?</span></label><input type="number" id="grow-projection-period" value="10" class="form-control"></div>
+                <div class="control-group"><label for="grow-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="grow-inflation-rate" value="0" class="form-control"></div>
+                <div class="control-group"><label for="grow-contribution-increase">Annual Contribution Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="grow-contribution-increase" value="0" class="form-control"></div>
             </div>
-            <div class="phase-header">Phase 2: Your Retirement Years (Income)</div>
+        </div>
+        <div id="retire-settings" class="hidden" style="margin-top: var(--space-lg);">
+            <div class="control-group"><label for="current-age">What is your current age? <span class="help-icon" data-tooltip="Your current age. This is used as the starting point for retirement projections.">?</span></label><input type="number" id="current-age" value="30" class="form-control"></div>
+            <h3 style="margin-bottom: var(--space-md);">Phase 1: Your Working Years (Saving)</h3>
+            <div class="controls-grid">
+                 <div class="control-group"><label for="retirement-age">At what age do you want to retire? <span class="help-icon" data-tooltip="The age you plan to stop working and start drawing an income from your portfolio.">?</span></label><input type="number" id="retirement-age" value="65" class="form-control"></div>
+                 <div class="control-group"><label for="retire-contribution-increase">Annual Saving Increase (%) <span class="help-icon" data-tooltip="If your savings grow each year, add a percent here; leave 0% to keep deposits flat.">?</span></label><input type="number" id="retire-contribution-increase" value="0" class="form-control"></div>
+            </div>
+            <h3 style="margin-bottom: var(--space-md);">Phase 2: Your Retirement Years (Income)</h3>
             <div class="controls-grid">
                 <div class="control-group">
-                    <label for="withdrawal-strategy">Retirement income plan? <span class="help-icon" data-tooltip="Choose how you want to receive your income in retirement. This determines how money is withdrawn from your portfolio.">?</span></label>
-                    <select id="withdrawal-strategy">
+                    <label for="withdrawal-strategy">Retirement income plan? <span class="help-icon" data-tooltip="Choose how you want to receive your income in retirement.">?</span></label>
+                    <select id="withdrawal-strategy" class="form-control">
                         <option value="dividends">Live Off Dividend Income Only</option>
                         <option value="fixed_amount" selected>Withdraw a Fixed Amount Annually</option>
                         <option value="percentage">Withdraw a Percentage Annually</option>
                     </select>
                 </div>
-                <div class="control-group"><label for="final-age">How long should income last? <span class="help-icon" data-tooltip="The age until which you need your retirement income to last.">?</span></label><input type="number" id="final-age" value="95"></div>
+                <div class="control-group"><label for="final-age">How long should income last? <span class="help-icon" data-tooltip="The age until which you need your retirement income to last.">?</span></label><input type="number" id="final-age" value="95" class="form-control"></div>
             </div>
             <div class="indented-settings">
-                <div class="control-group hidden" id="fixed_amount_setting"><label for="annual-withdrawal-amount">Annual Withdrawal Amount ($) <span class="help-icon" data-tooltip="The amount of money you plan to withdraw each year for living expenses in retirement.">?</span></label><input type="number" id="annual-withdrawal-amount" value="50000"></div>
-                <div class="control-group hidden" id="percentage_setting"><label for="annual-withdrawal-rate">Annual Withdrawal Rate (%) <span class="help-icon" data-tooltip="Typical rule-of-thumb is 4%. Higher % = higher risk of running out of money.">?</span></label><input type="number" id="annual-withdrawal-rate" value="4"></div>
+                <div class="control-group hidden" id="fixed_amount_setting"><label for="annual-withdrawal-amount">Annual Withdrawal Amount ($) <span class="help-icon" data-tooltip="The amount of money you plan to withdraw each year for living expenses in retirement.">?</span></label><input type="number" id="annual-withdrawal-amount" value="50000" class="form-control"></div>
+                <div class="control-group hidden" id="percentage_setting"><label for="annual-withdrawal-rate">Annual Withdrawal Rate (%) <span class="help-icon" data-tooltip="Typical rule-of-thumb is 4%. Higher % = higher risk of running out of money.">?</span></label><input type="number" id="annual-withdrawal-rate" value="4" class="form-control"></div>
             </div>
-             <div class="control-group" style="margin-top:20px;">
-                <label for="retire-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="retire-inflation-rate" value="0">
+             <div class="control-group" style="margin-top: var(--space-md);">
+                <label for="retire-inflation-rate">Assumed Annual Inflation (%) <span class="help-icon" data-tooltip="Used to show results in ‘today’s dollars.’ Leave 0% for nominal results.">?</span></label><input type="number" id="retire-inflation-rate" value="0" class="form-control">
             </div>
         </div>
-        <div class="projections-button-wrapper">
-            <button id="run-projections-btn" class="add-btn" disabled>Run Projections</button>
+        <div class="run-button-container">
+            <button id="run-projections-btn" class="btn btn--primary" disabled>Run Projections</button>
             <div id="projections-loader" class="loader"></div>
         </div>
         <div id="projection-debug-container" class="debug-log hidden"><h4>Projection Debug Log:</h4></div>
-        <div id="projections-results-area" class="hidden" style="margin-top: 20px;"></div>
-        <div id="projection-chart-container" class="hidden"><div style="width: 100%; max-width: 900px; margin: auto; padding-bottom: 20px;"><canvas id="projection-chart"></canvas></div></div>
+        <div id="projections-results-area" class="hidden" style="margin-top: var(--space-md);"></div>
+        <div id="projection-chart-container" class="hidden"><div style="width: 100%; max-width: 900px; margin: auto; padding-bottom: var(--space-md);"><canvas id="projection-chart"></canvas></div></div>
     </div>
     <footer>
         <p><strong>Disclaimer:</strong> This tool is for informational and illustrative purposes only. The results are based on historical data and Monte Carlo simulations, which are not guarantees of future performance. Past performance is not indicative of future results. All investments involve risk and may lose value.</p>
